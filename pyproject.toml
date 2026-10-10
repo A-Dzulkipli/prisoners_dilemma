@@ -1,0 +1,11 @@
+[project]
+name = "ipd"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = ["jax", "numpy"]
+
+[project.optional-dependencies]
+test = ["pytest", "axelrod"]
+
+[tool.setuptools]
+packages = ["ipd"]

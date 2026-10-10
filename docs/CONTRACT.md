@@ -37,12 +37,13 @@ class Bot(NamedTuple):
 - Each bot declares `memory_depth` and `stochastic` in the axelrod classifier style.
 
 ## Engine
-- `play_match(bot_a, bot_b, payoff_a, payoff_b, cfg) -> MatchResult` returns `actions [T, 2]`
-  and `scores [T, 2]`.
-- `round_robin(bots, payoffs, cfg) -> TournamentResult` returns a mean score-per-turn matrix of
+- `play_match(bot_a, bot_b, key, cfg, payoff_a, payoff_b) -> MatchResult` returns `actions [T, 2]`,
+  `scores [T, 2]` and `length`. It is pure, so vmap over keys, or over params with
+  `bot._replace(params=p)`.
+- `round_robin(bots, cfg, payoffs) -> TournamentResult` returns a mean score-per-turn matrix of
   `[n, n, reps]`, plus cooperation rates.
-- `moran(bots, payoffs, cfg)` and the evolutionary routines are built on the score matrix and do not
-  replay matches when the matrix can be reused.
+- `moran(scores, population, key)` runs a birth-death process on a `[n_types, n_types]` mean score
+  matrix and does not replay matches. Vmap it over keys to get fixation probabilities.
 - `cfg` is one frozen dataclass: turns, prob_end, T_max, noise, reps, seed, and reveal_opponent_payoff.
   It is saved with every result, along with `payoffs`.
 - Hand-written bots that differ in code are dispatched with `lax.switch` on a bot index. Bot families
