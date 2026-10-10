@@ -11,4 +11,7 @@ from ipd import bots
 result = round_robin(bots.CLASSICS + [bots.generous_tit_for_tat()], Config(noise=0.01, reps=20))
 ```
 
+`ipd.strategies.all_strategies()` returns every ported axelrod library strategy, each verified against
+the library. A few constructors read weights from `axelrod` (`pip install ".[library]"`).
+
 Tests check the engine against the `axelrod` library: `pip install -e ".[test]" && pytest`.

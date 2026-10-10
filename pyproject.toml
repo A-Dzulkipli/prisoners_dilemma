@@ -6,6 +6,8 @@ dependencies = ["jax", "numpy"]
 
 [project.optional-dependencies]
 test = ["pytest", "axelrod"]
+# FSM, PSO gambler, ANN and attention bots read their tables/weights from axelrod (attention also needs torch)
+library = ["axelrod", "torch"]
 
 [tool.setuptools]
 packages = ["ipd"]

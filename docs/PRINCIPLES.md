@@ -24,3 +24,9 @@ Add one dated line per finding, with a link to the notebook or commit that shows
   library nor our port reproduces the published rankings: Stein & Rapoport and Grofman top the first
   tournament instead of TFT, because the reconstructions fill gaps in the 1980 descriptions
   (`scripts/axelrod_tournaments.py`).
+- 2026-10-10: Several library strategies (DBS, Revised Downing, Math Constant Hunter, Adaptive TFT,
+  Momentum) depend on float64 rounding at exact ties. The float32 ports carry precomputed tie tables or
+  float32 pairs to match. DBS still differs from the library on about 3% of sequences, where the
+  library breaks mathematically exact ties by rounding noise.
+- 2026-10-10: Move-for-move checks run without noise and with a known length, so noise-specific paths
+  (e.g. Contrite TFT) and the unknown-length path are only smoke-tested.
