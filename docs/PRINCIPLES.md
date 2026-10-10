@@ -15,6 +15,7 @@
 7. **Report spread.** Give the mean with an interval over seeds or repetitions, never a single run.
 
 ## Learnings
+Findings from experiments. Owner-requested notes and future interests live in `NOTES.md`.
 Add one dated line per finding, with a link to the notebook or commit that shows it.
 
 - 2026-10-10: Project started. Background summary in `docs/background.md`.
