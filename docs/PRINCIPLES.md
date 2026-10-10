@@ -19,3 +19,8 @@ Findings from experiments. Owner-requested notes and future interests live in `N
 Add one dated line per finding, with a link to the notebook or commit that shows it.
 
 - 2026-10-10: Project started. Background summary in `docs/background.md`.
+- 2026-10-10: All 36 first- and second-tournament strategies are ported and match the axelrod library
+  (deterministic ones move for move). Mean tournament scores agree within 0.01 per turn. Neither the
+  library nor our port reproduces the published rankings: Stein & Rapoport and Grofman top the first
+  tournament instead of TFT, because the reconstructions fill gaps in the 1980 descriptions
+  (`scripts/axelrod_tournaments.py`).
