@@ -1,10 +1,8 @@
-"""Cyclers, ported from axelrod's cycler.py."""
+"""Cyclers."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot, no_state
+from ipd.bots import INF, Bot, no_state
 from ipd.game import C, D
-
-INF = float("inf")
 
 
 def _cycler_act(p, s, o, k):
@@ -25,7 +23,7 @@ def _anti_cycler_act(p, s, o, k):
     late = o.t >= 3
     length = jnp.where(late & ~play_c, length + 1, length)
     count = jnp.where(late, jnp.where(play_c, count + 1, 0), count)
-    return action, (length.astype(jnp.int32), count.astype(jnp.int32))
+    return action, (length, count)
 
 
 anti_cycler = Bot("AntiCycler", lambda p, k: (jnp.int32(1), jnp.int32(0)), _anti_cycler_act, memory_depth=INF)

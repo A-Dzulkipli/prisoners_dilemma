@@ -1,4 +1,4 @@
-"""Zero-determinant (linear relation) memory-one strategies, ported from axelrod's zero_determinant.py."""
+"""Zero-determinant (linear relation) memory-one strategies."""
 from ipd.bots import memory_one
 from ipd.game import AXELROD_PAYOFF
 

@@ -1,7 +1,7 @@
-"""Bush-Mosteller reinforcement learner, ported from axelrod's bush_mosteller.py."""
+"""Bush-Mosteller reinforcement learner."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob
+from ipd.bots import INF, Bot, coop_with_prob
 from ipd.game import C
 
 
@@ -17,13 +17,13 @@ def _bm_act(p, s, o, k):
     live = o.t > 0
     c_prob = jnp.where(live & (o.my_last == C), prob, c_prob)
     d_prob = jnp.where(live & (o.my_last != C), prob, d_prob)
-    return _coop_with_prob(k, c_prob / (c_prob + d_prob)), jnp.stack([c_prob, d_prob])
+    return coop_with_prob(k, c_prob / (c_prob + d_prob)), jnp.stack([c_prob, d_prob])
 
 
 def bush_mosteller(c_prob=0.5, d_prob=0.5, aspiration_level_divider=3.0, learning_rate=0.5):
     params = jnp.array([c_prob, d_prob, aspiration_level_divider, learning_rate], jnp.float32)
     return Bot("Bush Mosteller", lambda p, k: p[:2], _bm_act, params=params,
-               memory_depth=float("inf"), stochastic=True)
+               memory_depth=INF, stochastic=True)
 
 
 STRATEGIES = [bush_mosteller()]

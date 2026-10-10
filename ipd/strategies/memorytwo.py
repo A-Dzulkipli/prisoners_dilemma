@@ -1,10 +1,8 @@
-"""Memory-two strategies, ported from axelrod's memorytwo.py."""
+"""Memory-two strategies."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob
+from ipd.bots import INF, Bot, coop_with_prob, tft
 from ipd.game import C, D
-
-INF = float("inf")
 
 
 def _memory_two_init(p, k):
@@ -16,14 +14,14 @@ def _memory_two_act(p, s, o, k):
     my2, their2 = s
     # index into the sixteen vector: (my t-2, my t-1, their t-2, their t-1) in binary, C = 0
     idx = 8 * my2 + 4 * jnp.maximum(o.my_last, 0) + 2 * their2 + jnp.maximum(o.their_last, 0)
-    action = jnp.where(o.t < 2, p["initial"][jnp.minimum(o.t, 1)], _coop_with_prob(k, p["p"][idx]))
-    return action, (jnp.maximum(o.my_last, 0).astype(jnp.int32), jnp.maximum(o.their_last, 0).astype(jnp.int32))
+    action = jnp.where(o.t < 2, p["initial"][jnp.minimum(o.t, 1)], coop_with_prob(k, p["p"][idx]))
+    return action, (jnp.maximum(o.my_last, 0), jnp.maximum(o.their_last, 0))
 
 
-def memory_two(sixteen_vector, initial=(C, C), name="Generic Memory Two Player", stochastic=False):
+def memory_two(sixteen_vector, initial=(C, C), name="Generic Memory Two Player"):
     """sixteen_vector: P(C | my last two, their last two), ordered as in axelrod's MemoryTwoPlayer."""
     params = {"p": jnp.asarray(sixteen_vector, jnp.float32), "initial": jnp.asarray(initial, jnp.int32)}
-    return Bot(name, _memory_two_init, _memory_two_act, params=params, memory_depth=2, stochastic=stochastic)
+    return Bot(name, _memory_two_init, _memory_two_act, params=params, memory_depth=2)
 
 
 aon2 = memory_two([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], name="AON2")
@@ -50,11 +48,11 @@ def _mem2_act(p, s, o, k):
     shift = jnp.where(switch, 2, shift)
     action = jnp.select(
         [mode == TFT, mode == TFTT],
-        [jnp.where(o.their_last == D, D, C), jnp.where((o.their_last == D) & (their2 == D), D, C)],
+        [tft(o), jnp.where((o.their_last == D) & (their2 == D), D, C)],
         D,
     )
     new_s = jnp.stack([mode, shift, n_alld, jnp.maximum(o.my_last, 0), jnp.maximum(o.their_last, 0)])
-    return action, new_s.astype(jnp.int32)
+    return action, new_s
 
 
 mem2 = Bot("MEM2", _mem2_init, _mem2_act, memory_depth=INF)

@@ -1,7 +1,7 @@
-"""Doubler, ported from axelrod's doubler.py."""
+"""Doubler."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -11,6 +11,6 @@ def _doubler_act(p, n_def, o, k):
     return jnp.where((o.their_last == D) & (n_coop <= 2 * n_def), D, C), n_def
 
 
-doubler = Bot("Doubler", lambda p, k: jnp.int32(0), _doubler_act, memory_depth=float("inf"))
+doubler = Bot("Doubler", lambda p, k: jnp.int32(0), _doubler_act, memory_depth=INF)
 
 STRATEGIES = [doubler]

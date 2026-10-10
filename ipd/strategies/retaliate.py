@@ -1,10 +1,8 @@
-"""Retaliate variants, ported from axelrod's strategies/retaliate.py."""
+"""Retaliate variants."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
-
-INF = float("inf")
 
 
 def _count_wins(n_cd, n_dc, o):
@@ -17,7 +15,7 @@ def _count_wins(n_cd, n_dc, o):
 def _retaliate_act(p, s, o, k):
     n_cd, n_dc = _count_wins(s[0], s[1], o)
     # CD > DC * threshold, with the threshold in percent so it stays exact
-    return jnp.where(100 * n_cd > n_dc * p, D, C), jnp.stack([n_cd, n_dc]).astype(jnp.int32)
+    return jnp.where(100 * n_cd > n_dc * p, D, C), jnp.stack([n_cd, n_dc])
 
 
 def retaliate(name="Retaliate", threshold_pct=10):
@@ -32,7 +30,7 @@ def _limited_retaliate_act(p, s, o, k):
     hit = retaliating & (count < p["limit"])
     # at the limit the count resets and the next round may start retaliating again
     count = jnp.where(hit, count + 1, 0)
-    return jnp.where(hit, D, C), jnp.stack([n_cd, n_dc, count]).astype(jnp.int32)
+    return jnp.where(hit, D, C), jnp.stack([n_cd, n_dc, count])
 
 
 def limited_retaliate(name="Limited Retaliate", threshold_pct=10, limit=20):

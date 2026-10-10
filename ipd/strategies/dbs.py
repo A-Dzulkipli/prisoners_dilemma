@@ -1,4 +1,4 @@
-"""DBS (Derived Belief Strategy, Au and Nau 2006), ported from axelrod's dbs.py.
+"""DBS (Derived Belief Strategy, Au and Nau 2006).
 
 The opponent model is kept per outcome (my move, their move), indexed 2 * mine + theirs:
 deterministic rules Rc, default rules Rd (initially TFT) and discounted frequencies Rp. The library's
@@ -9,7 +9,7 @@ import functools
 import jax.numpy as jnp
 from jax import lax
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 # the library's tree search uses fixed Axelrod payoffs, not the match game
@@ -101,12 +101,12 @@ def _split(a):
     return hi, a - hi
 
 
-def _df_add(x, y):
+def df_add(x, y):
     s, e = _two_sum(x[0], y[0])
     return _two_sum(s, e + x[1] + y[1])
 
 
-def _df_mul(x, y):
+def df_mul(x, y):
     p = lax.optimization_barrier(x[0] * y[0])
     (xh, xl), (yh, yl) = _split(x[0]), _split(y[0])
     e = ((xh * yh - p) + xh * yl + xl * yh) + xl * yl
@@ -115,7 +115,7 @@ def _df_mul(x, y):
 
 def _df_expect(q, a, b):
     """q * a + (1 - q) * b, as b + q * (a - b)."""
-    return _df_add(b, _df_mul(_df_add(a, (-b[0], -b[1])), q))
+    return df_add(b, df_mul(df_add(a, (-b[0], -b[1])), q))
 
 
 def _df_max(a, b):
@@ -130,14 +130,14 @@ def _tree_search(pi, outcome, depth):
     for _ in range(depth - 1):
         exp_c = _df_expect(pi, (value[0][0], value[1][0]), (value[0][1], value[1][1]))
         exp_d = _df_expect(pi, (value[0][2], value[1][2]), (value[0][3], value[1][3]))
-        value = _df_add(_df_max(exp_c, exp_d), (OUTCOME_VALUE, zero))
+        value = df_add(_df_max(exp_c, exp_d), (OUTCOME_VALUE, zero))
     q = pi[0][outcome], pi[1][outcome]
     exp_c = _df_expect(q, (value[0][0], value[1][0]), (value[0][1], value[1][1]))
     exp_d = _df_expect(q, (value[0][2], value[1][2]), (value[0][3], value[1][3]))
-    return _df_add(exp_c, (-exp_d[0], -exp_d[1]))
+    return df_add(exp_c, (-exp_d[0], -exp_d[1]))
 
 
-def _dbs_act(p, s, o, k, tree_depth=5):
+def _dbs_act(p, s, o, k, tree_depth):
     learned = _learn(p, s, o)
     s = {key: jnp.where(o.t >= 2, learned[key], s[key]) for key in s}
     outcome = jnp.maximum(2 * o.my_last + o.their_last, 0)
@@ -151,7 +151,7 @@ def dbs(discount_factor=0.75, promotion_threshold=3, violation_threshold=4, reje
     params = {"alpha": jnp.float32(discount_factor), "promotion_threshold": jnp.int32(promotion_threshold),
               "violation_threshold": jnp.int32(violation_threshold), "reject_threshold": jnp.int32(reject_threshold)}
     act = functools.partial(_dbs_act, tree_depth=tree_depth)
-    return Bot("DBS", _init, act, params, memory_depth=float("inf"))
+    return Bot("DBS", _init, act, params, memory_depth=INF)
 
 
 STRATEGIES = [dbs()]

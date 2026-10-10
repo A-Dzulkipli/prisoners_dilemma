@@ -1,4 +1,8 @@
-"""Every ported axelrod library strategy, keyed by library name."""
+"""Every ported axelrod library strategy, keyed by library name.
+
+Each module ports the axelrod module of the same name (axelrod_second is split in two). The ports follow
+the library's code where it differs from the published descriptions.
+"""
 import importlib
 import pkgutil
 

@@ -1,7 +1,7 @@
-"""Tricky Defector, ported from axelrod's defector.py (Defector itself is in ipd.bots)."""
+"""Tricky Defector; Defector itself is in ipd.bots."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -15,6 +15,6 @@ def _tricky_defector_act(p, s, o, k):
 
 
 tricky_defector = Bot("Tricky Defector", lambda p, k: (jnp.bool_(False), jnp.int32(0)), _tricky_defector_act,
-                      memory_depth=float("inf"))
+                      memory_depth=INF)
 
 STRATEGIES = [tricky_defector]

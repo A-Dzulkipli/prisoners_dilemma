@@ -5,7 +5,7 @@ requires-python = ">=3.10"
 dependencies = ["jax", "numpy"]
 
 [project.optional-dependencies]
-test = ["pytest", "axelrod"]
+test = ["pytest", "axelrod", "torch"]
 # FSM, PSO gambler, ANN and attention bots read their tables/weights from axelrod (attention also needs torch)
 library = ["axelrod", "torch"]
 

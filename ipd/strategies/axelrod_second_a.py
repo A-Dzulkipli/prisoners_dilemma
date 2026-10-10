@@ -1,25 +1,16 @@
-"""Strategies from Axelrod's second tournament (Appold to Harrington), ported from axelrod v4.14."""
+"""Strategies from Axelrod's second tournament (1980), Appold to Harrington."""
 import jax
 import jax.numpy as jnp
 from jax import lax
 
-from ipd.bots import Bot, _coop_with_prob
+from ipd.bots import INF, Bot, coop_with_prob, last_payoff
 from ipd.game import C, D
-
-INF = float("inf")
-
-
-def _i(x):
-    return jnp.int32(x)
-
-
-# --- Appold ------------------------------------------------------------------
 
 
 def _appold_init(p, k):
     # opponent C counts and totals after our C / D two turns ago; D starts at 1/1
     return {"c_after": jnp.array([0, 1], jnp.int32), "total": jnp.array([0, 1], jnp.int32),
-            "my_prev": _i(C), "first_def": jnp.bool_(False)}
+            "my_prev": jnp.int32(C), "first_def": jnp.bool_(False)}
 
 
 def _appold_act(p, s, o, k):
@@ -30,14 +21,13 @@ def _appold_act(p, s, o, k):
     c_after = s["c_after"].at[x].add(seen & (o.their_last == C))
     forgive = (turn > 4) & (o.their_last == D) & ~s["first_def"]
     prob = c_after[x] / total[x]
-    a = jnp.where((turn <= 4) | forgive, C, _coop_with_prob(k, prob))
+    a = jnp.where((turn <= 4) | forgive, C, coop_with_prob(k, prob))
     s = {"c_after": c_after, "total": total, "my_prev": o.my_last, "first_def": s["first_def"] | forgive}
     return a, s
 
 
 second_by_appold = Bot("Second by Appold", _appold_init, _appold_act, memory_depth=INF, stochastic=True)
 
-# --- Black -------------------------------------------------------------------
 
 _BLACK_PROB = jnp.array([1.0, 1.0, 0.88, 0.68, 0.4, 0.04], jnp.float32)
 
@@ -46,18 +36,16 @@ def _black_act(p, last5, o, k):
     """Cooperate with prob depending on opponent defections in the last five moves."""
     last5 = ((last5 << 1) | jnp.maximum(o.their_last, 0)) & 0b11111
     n_d = lax.population_count(last5)
-    return jnp.where(o.t < 5, C, _coop_with_prob(k, _BLACK_PROB[n_d])), last5
+    return jnp.where(o.t < 5, C, coop_with_prob(k, _BLACK_PROB[n_d])), last5
 
 
-second_by_black = Bot("Second by Black", lambda p, k: _i(0), _black_act, memory_depth=5, stochastic=True)
-
-# --- Borufsen ----------------------------------------------------------------
+second_by_black = Bot("Second by Black", lambda p, k: jnp.int32(0), _black_act, memory_depth=5, stochastic=True)
 
 
 def _borufsen_init(p, k):
-    z = _i(0)
+    z = jnp.int32(0)
     return {"cc": z, "cd": z, "mutual": z, "echo": z, "flip": jnp.bool_(False), "defect": jnp.bool_(False),
-            "my_prev": _i(C), "their_prev": _i(C)}
+            "my_prev": jnp.int32(C), "their_prev": jnp.int32(C)}
 
 
 def _borufsen_act(p, s, o, k):
@@ -106,8 +94,6 @@ def _borufsen_act(p, s, o, k):
 
 second_by_borufsen = Bot("Second by Borufsen", _borufsen_init, _borufsen_act, memory_depth=INF)
 
-# --- Cave --------------------------------------------------------------------
-
 
 def _cave_act(p, n_d, o, k):
     """Defect against defective or random-looking opponents, else answer D with D or a coin flip."""
@@ -116,14 +102,12 @@ def _cave_act(p, n_d, o, k):
     # perc_defects = n_d / turn (the library divides by turn, not by moves seen)
     harsh = ((turn > 39) & (100 * n_d > 39 * turn)) | ((turn > 29) & (100 * n_d > 65 * turn)) | (
         (turn > 19) & (100 * n_d > 79 * turn))
-    reply_d = jnp.where(n_d > 17, D, _coop_with_prob(k, 0.5))
+    reply_d = jnp.where(n_d > 17, D, coop_with_prob(k, 0.5))
     a = jnp.where(o.t == 0, C, jnp.where(harsh, D, jnp.where(o.their_last == D, reply_d, C)))
     return a, n_d
 
 
-second_by_cave = Bot("Second by Cave", lambda p, k: _i(0), _cave_act, memory_depth=INF, stochastic=True)
-
-# --- Champion ----------------------------------------------------------------
+second_by_cave = Bot("Second by Cave", lambda p, k: jnp.int32(0), _cave_act, memory_depth=INF, stochastic=True)
 
 
 def _champion_act(p, n_d, o, k):
@@ -135,9 +119,9 @@ def _champion_act(p, n_d, o, k):
     return a, n_d
 
 
-second_by_champion = Bot("Second by Champion", lambda p, k: _i(0), _champion_act, memory_depth=INF, stochastic=True)
+second_by_champion = Bot("Second by Champion", lambda p, k: jnp.int32(0), _champion_act, memory_depth=INF,
+                         stochastic=True)
 
-# --- Colbert -----------------------------------------------------------------
 
 # FSM: [state, opponent's last move] -> next state / action
 _COLBERT_NEXT = jnp.array([[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [7, 8], [9, 9], [10, 10], [7, 7]])
@@ -151,39 +135,33 @@ def _colbert_act(p, state, o, k):
     return a, jnp.where(o.t == 0, state, _COLBERT_NEXT[state, opp])
 
 
-second_by_colbert = Bot("Second by Colbert", lambda p, k: _i(0), _colbert_act, memory_depth=4)
-
-# --- Eatherley ---------------------------------------------------------------
+second_by_colbert = Bot("Second by Colbert", lambda p, k: jnp.int32(0), _colbert_act, memory_depth=4)
 
 
 def _eatherley_act(p, n_d, o, k):
     """After a D, defect with probability equal to the opponent's defection rate."""
     n_d = n_d + (o.their_last == D)
     prop = n_d / jnp.maximum(o.t, 1)
-    a = jnp.where((o.t == 0) | (o.their_last == C), C, _coop_with_prob(k, 1 - prop))
+    a = jnp.where((o.t == 0) | (o.their_last == C), C, coop_with_prob(k, 1 - prop))
     return a, n_d
 
 
-second_by_eatherley = Bot("Second by Eatherley", lambda p, k: _i(0), _eatherley_act, memory_depth=INF,
+second_by_eatherley = Bot("Second by Eatherley", lambda p, k: jnp.int32(0), _eatherley_act, memory_depth=INF,
                           stochastic=True)
-
-# --- Getzler -----------------------------------------------------------------
 
 
 def _getzler_act(p, flack, o, k):
     """Defect with probability flack = sum of 0.5^(turns ago) over opponent defections."""
     flack = jnp.where(o.t == 0, flack, 0.5 * (flack + (o.their_last == D)))
-    return _coop_with_prob(k, 1.0 - flack), flack
+    return coop_with_prob(k, 1.0 - flack), flack
 
 
 second_by_getzler = Bot("Second by Getzler", lambda p, k: jnp.float32(0), _getzler_act, memory_depth=INF,
                         stochastic=True)
 
-# --- Gladstein ---------------------------------------------------------------
-
 
 def _gladstein_act(p, s, o, k):
-    """D first; while the opponent never defects keep my cooperation ratio at most 0.5; after its first D, C then TFT."""
+    """D first; until the opponent defects, keep my cooperation ratio at most 0.5; then C once and TFT."""
     my_c, patsy = s
     my_c = my_c + (o.my_last == C)
     apologize = patsy & (o.their_last == D)
@@ -192,10 +170,9 @@ def _gladstein_act(p, s, o, k):
     return a, (my_c, patsy & ~apologize)
 
 
-second_by_gladstein = Bot("Second by Gladstein", lambda p, k: (_i(0), jnp.bool_(True)), _gladstein_act,
+second_by_gladstein = Bot("Second by Gladstein", lambda p, k: (jnp.int32(0), jnp.bool_(True)), _gladstein_act,
                           memory_depth=INF)
 
-# --- Graaskamp and Katzen ----------------------------------------------------
 
 _GK_TURNS = jnp.array([11, 21, 31, 41, 51, 101])
 _GK_SCORES = jnp.array([23, 53, 83, 113, 143, 293], jnp.float32)
@@ -205,7 +182,7 @@ def _gk_act(p, s, o, k):
     """TFT, but defect forever if own score is low at checkpoint turns."""
     score, defect = s
     turn = o.t + 1
-    score = score + jnp.where(o.t == 0, 0.0, o.my_payoff[o.my_last, o.their_last])
+    score = score + last_payoff(o)
     low = jnp.any((turn == _GK_TURNS) & (score < _GK_SCORES))
     new_defect = defect | ((o.t > 0) & low)
     a = jnp.where(o.t == 0, C, jnp.where(new_defect, D, o.their_last))
@@ -215,8 +192,6 @@ def _gk_act(p, s, o, k):
 
 second_by_graaskamp_katzen = Bot("Second by GraaskampKatzen", lambda p, k: (jnp.float32(0), jnp.bool_(False)),
                                  _gk_act, memory_depth=INF)
-
-# --- Grofman -----------------------------------------------------------------
 
 
 def _grofman_act(p, last8, o, k):
@@ -228,21 +203,20 @@ def _grofman_act(p, last8, o, k):
     return a, last8
 
 
-second_by_grofman = Bot("Second by Grofman", lambda p, k: _i(0), _grofman_act, memory_depth=8)
+second_by_grofman = Bot("Second by Grofman", lambda p, k: jnp.int32(0), _grofman_act, memory_depth=8)
 
-# --- Harrington --------------------------------------------------------------
 
 NORMAL, FAIR_WEATHER, DEFECT = 0, 1, 2
 
 
 def _harrington_init(p, k):
-    z = _i(0)
+    z = jnp.int32(0)
     return {
-        "mode": _i(NORMAL), "recorded_defects": z, "exit_meter": z, "was_defective": jnp.bool_(False),
+        "mode": jnp.int32(NORMAL), "recorded_defects": z, "exit_meter": z, "was_defective": jnp.bool_(False),
         "prob": jnp.float32(0.25), "move_history": jnp.zeros((4, 2), jnp.int32), "more_coop": z,
-        "last_generous": _i(3), "burned": jnp.bool_(False), "defect_streak": z,
-        "parity_streak": jnp.zeros(2, jnp.int32), "parity_bit": z, "parity_limit": _i(5), "parity_hits": z,
-        "opp_coops": z, "my_prev": _i(C), "their_prev": _i(C),
+        "last_generous": jnp.int32(3), "burned": jnp.bool_(False), "defect_streak": z,
+        "parity_streak": jnp.zeros(2, jnp.int32), "parity_bit": z, "parity_limit": jnp.int32(5), "parity_hits": z,
+        "opp_coops": z, "my_prev": jnp.int32(C), "their_prev": jnp.int32(C),
     }
 
 

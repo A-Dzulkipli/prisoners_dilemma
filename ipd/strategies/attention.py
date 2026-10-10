@@ -1,10 +1,7 @@
-"""EvolvedAttention, ported from axelrod's attention.py: a 24-layer BERT-style encoder over the
-last 200 rounds, most recent first, read from a CLS token.
+"""EvolvedAttention: a 24-layer BERT-style encoder over the last 200 rounds, most recent first.
 
-The window is a fixed 200-token buffer padded with PAD and masked, which matches the library's
-unpadded variable-length input. Every act is a full forward pass (~5 GFLOP), so this bot is very
-slow under round_robin's lax.switch, where every branch runs for every match (the library also
-flags it long_run_time).
+The window is a 200-token buffer padded with PAD and masked, matching the library's unpadded input.
+Every act is a full forward pass (~5 GFLOP), so the bot is slow, most of all under round_robin's lax.switch.
 """
 import jax
 import jax.numpy as jnp

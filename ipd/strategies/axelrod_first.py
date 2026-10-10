@@ -1,11 +1,10 @@
-"""Strategies from Axelrod's first tournament (1980), ported from axelrod's axelrod_first.py."""
+"""Strategies from Axelrod's first tournament (1980)."""
 import jax
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob, memory_one, no_state
+from ipd.bots import INF, Bot, coop_with_prob, defect_at_end, grudger_bot, last_payoff, memory_one, no_state, tft
 from ipd.game import C, D
 
-INF = float("inf")
 # chi2.ppf(0.95, df=1): a two-bin chi-squared test has p >= 0.05 iff the statistic is at most this
 CHI2_CRIT = 3.841458820694124
 
@@ -16,25 +15,15 @@ def _looks_random(n_coop, n):
     return diff * diff <= CHI2_CRIT * n
 
 
-def _last_two_defect(o, action):
-    """FinalTransformer((D, D)): defect on the last two turns when the length is known."""
-    return jnp.where((o.turns > 0) & (o.t >= o.turns - 2), D, action)
-
-
 def _anonymous_act(p, s, o, k):
     k1, k2 = jax.random.split(k)
-    return _coop_with_prob(k2, jax.random.uniform(k1, (), minval=0.3, maxval=0.7)), s
+    return coop_with_prob(k2, jax.random.uniform(k1, (), minval=0.3, maxval=0.7)), s
 
 
 anonymous = Bot("First by Anonymous", no_state, _anonymous_act, memory_depth=0, stochastic=True)
 
 
-def _davis_act(p, wronged, o, k):
-    wronged = wronged | (o.their_last == D)
-    return jnp.where((o.t >= 10) & wronged, D, C), wronged
-
-
-davis = Bot("First by Davis", lambda p, k: jnp.bool_(False), _davis_act, memory_depth=INF)
+davis = grudger_bot("First by Davis", C, 10)
 
 
 def _downing_init(p, k):
@@ -55,7 +44,7 @@ def _downing_act(p, s, o, k):
     diff = (S - P) * a * b + n_cc * (R - S) * b - n_cd * (T - P) * a
     action = jnp.select([o.t < 2, diff > 0, diff < 0], [D, C, D], 1 - o.my_last)
     my_prev2 = jnp.where(o.t == 0, C, o.my_last)
-    return action, jnp.stack([n_cc, n_cd, coops, defs, my_prev2]).astype(jnp.int32)
+    return action, jnp.stack([n_cc, n_cd, coops, defs, my_prev2])
 
 
 downing = Bot("First by Downing", _downing_init, _downing_act, memory_depth=INF)
@@ -63,7 +52,7 @@ downing = Bot("First by Downing", _downing_init, _downing_act, memory_depth=INF)
 
 def _feld_act(p, s, o, k):
     p_coop = jnp.maximum(1.0 - 0.5 / 200 * o.t, 0.5)
-    action = jnp.where(o.t == 0, C, jnp.where(o.their_last == D, D, _coop_with_prob(k, p_coop)))
+    action = jnp.where(o.t == 0, C, jnp.where(o.their_last == D, D, coop_with_prob(k, p_coop)))
     return action, s
 
 
@@ -71,7 +60,7 @@ feld = Bot("First by Feld", no_state, _feld_act, memory_depth=200, stochastic=Tr
 
 
 def _graaskamp_init(p, k):
-    # opponent cooperations, my move at t-1 before last, opponent is TFT so far, is my clone so far,
+    # opponent cooperations, my move at t-2, opponent is TFT so far, is my clone so far,
     # flagged random, next random defection turn (-1 = unset)
     return (jnp.int32(0), jnp.int32(-1), jnp.bool_(True), jnp.bool_(True), jnp.bool_(False), jnp.int32(-1))
 
@@ -83,7 +72,6 @@ def _graaskamp_act(p, s, o, k):
     is_clone = is_clone & (o.my_last == o.their_last)
     late = o.t >= 56
     is_random = is_random | (late & _looks_random(n_coop, o.t))
-    tft_move = jnp.where(o.their_last == D, D, C)
     # random defections every 5-15 moves against anything else
     roam = late & ~is_random & ~(is_tft | is_clone)
     next_d = jnp.where(roam & (next_d < 0), o.t + jax.random.randint(k, (), 5, 15), next_d)
@@ -92,17 +80,17 @@ def _graaskamp_act(p, s, o, k):
     next_d = jnp.where(hit, o.t + jax.random.randint(k2, (), 5, 15), next_d)
     action = jnp.select(
         [o.t == 0, ~late, is_random, is_tft | is_clone],
-        [C, jnp.where(o.t == 50, D, tft_move), D, tft_move],
+        [C, jnp.where(o.t == 50, D, tft(o)), D, tft(o)],
         jnp.where(hit, D, C),
     )
-    return action, (n_coop, o.my_last, is_tft, is_clone, is_random, next_d.astype(jnp.int32))
+    return action, (n_coop, o.my_last, is_tft, is_clone, is_random, next_d)
 
 
 graaskamp = Bot("First by Graaskamp", _graaskamp_init, _graaskamp_act, memory_depth=INF, stochastic=True)
 
 
 def _grofman_act(p, s, o, k):
-    return jnp.where((o.t == 0) | (o.my_last == o.their_last), C, _coop_with_prob(k, 2 / 7)), s
+    return jnp.where((o.t == 0) | (o.my_last == o.their_last), C, coop_with_prob(k, 2 / 7)), s
 
 
 grofman = Bot("First by Grofman", no_state, _grofman_act, memory_depth=1, stochastic=True)
@@ -119,10 +107,9 @@ def _nydegger_act(p, s, o, k):
     # outcome code is my D + 2 * their D; the library weights the most recent round by 16
     A = A // 4 + 16 * jnp.maximum(o.my_last + 2 * o.their_last, 0)
     their_first = jnp.where(o.t == 1, o.their_last, their_first)
-    tft = jnp.where(o.their_last == D, D, C)
     action = jnp.select(
         [o.t == 0, o.t == 1, o.t == 2],
-        [C, tft, jnp.where((their_first == D) & (o.their_last == C), D, tft)],
+        [C, tft(o), jnp.where((their_first == D) & (o.their_last == C), D, tft(o))],
         jnp.where(NYDEGGER_DEFECT[A], D, C),
     )
     return action, (A, their_first)
@@ -149,7 +136,7 @@ def _stein_rapoport_act(p, s, o, k):
     # every 15 rounds (round number t + 1) re-test whether the opponent looks random
     is_random = jnp.where((o.t >= 14) & ((o.t + 1) % 15 == 0), _looks_random(n_coop, o.t), is_random)
     action = jnp.select([o.t < 4, o.t < 14, is_random], [C, o.their_last, D], o.their_last)
-    return _last_two_defect(o, action), (n_coop, is_random)
+    return defect_at_end(o, action, 2), (n_coop, is_random)
 
 
 stein_and_rapoport = Bot(
@@ -172,7 +159,7 @@ def _tc_act(p, s, o, k):
     my_last, their_last = jnp.maximum(o.my_last, 0), jnp.maximum(o.their_last, 0)
     n_def = n_def + (o.their_last == D)
     # the library scores the opponent with the same (symmetric) game
-    my_score = my_score + jnp.where(first, 0.0, o.my_payoff[my_last, their_last])
+    my_score = my_score + last_payoff(o)
     their_score = their_score + jnp.where(first, 0.0, o.my_payoff[their_last, my_last])
     rnd = o.t + 1
     # fresh start if well ahead, 20+ rounds since the last one, 10+ rounds left, opponent just
@@ -199,7 +186,7 @@ def _tc_act(p, s, o, k):
     action = jnp.where(play & (remaining > 0), D, C)
     remaining = jnp.where(play, jnp.maximum(remaining - 1, 0), remaining)
     new_s = (remaining, length, n_def, my_score, their_score, last_fresh, fresh)
-    return _last_two_defect(o, action), new_s
+    return defect_at_end(o, action, 2), new_s
 
 
 tideman_and_chieruzzi = Bot("First by Tideman and Chieruzzi", _tc_init, _tc_act, memory_depth=INF)
@@ -209,7 +196,7 @@ def _tullock_act(p, window, o, k):
     # window holds the opponent's last 10 moves, -1 for rounds not yet played
     window = jnp.roll(window, -1).at[-1].set(o.their_last)
     p_coop = jnp.maximum(0.0, jnp.sum(window == C) / 10 - 0.1)
-    return jnp.where(o.t < 11, C, _coop_with_prob(k, p_coop)), window
+    return jnp.where(o.t < 11, C, coop_with_prob(k, p_coop)), window
 
 
 tullock = Bot(

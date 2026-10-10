@@ -1,8 +1,8 @@
-"""ShortMem, ported from axelrod's shortmem.py."""
+"""ShortMem."""
 import jax.numpy as jnp
 from jax import lax
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -14,6 +14,6 @@ def _shortmem_act(p, last10, o, k):
     return action, last10
 
 
-shortmem = Bot("ShortMem", lambda p, k: jnp.int32(0), _shortmem_act, memory_depth=float("inf"))
+shortmem = Bot("ShortMem", lambda p, k: jnp.int32(0), _shortmem_act, memory_depth=INF)
 
 STRATEGIES = [shortmem]

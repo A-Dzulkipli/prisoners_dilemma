@@ -1,15 +1,8 @@
-"""Prober strategies, ported from axelrod's prober.py."""
-import jax
+"""Prober strategies."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob, no_state
+from ipd.bots import INF, Bot, coop_with_prob, no_state, tft
 from ipd.game import C, D
-
-INF = float("inf")
-
-
-def _tft(o):
-    return jnp.where(o.their_last == D, D, C)
 
 
 def _first_moves_init(p, k):
@@ -27,7 +20,7 @@ def _collective_act(p, s, o, k):
     first = _record_first(first, o)
     n_def = n_def + (o.their_last == D)
     late = jnp.where((n_def <= 1) & (first[0] == C) & (first[1] == D), C, D)
-    return jnp.select([o.t == 0, o.t == 1], [C, D], late), (first, n_def.astype(jnp.int32))
+    return jnp.select([o.t == 0, o.t == 1], [C, D], late), (first, n_def)
 
 
 collective_strategy = Bot(
@@ -39,7 +32,7 @@ DETECTIVE_OPENING = jnp.array([C, D, C, C], jnp.int32)
 
 def _detective_act(p, first, o, k):
     first = _record_first(first, o)
-    late = jnp.where(jnp.any(first == D), _tft(o), D)
+    late = jnp.where(jnp.any(first == D), tft(o), D)
     return jnp.where(o.t < 4, DETECTIVE_OPENING[jnp.minimum(o.t, 3)], late), first
 
 
@@ -54,12 +47,13 @@ def _opening_act(p, first, o, k):
     first = _record_first(first, o)
     n = p["opening"].shape[0]
     hit = jnp.all((p["trigger"] == -1) | (p["trigger"] == first[1:3]))
-    late = jnp.where(hit, p["on_hit"], _tft(o))
+    late = jnp.where(hit, p["on_hit"], tft(o))
     return jnp.where(o.t < n, p["opening"][jnp.minimum(o.t, n - 1)], late), first
 
 
 def _opening_bot(name, opening, trigger, on_hit=D):
-    params = {"opening": jnp.asarray(opening, jnp.int32), "trigger": jnp.asarray(trigger, jnp.int32), "on_hit": jnp.int32(on_hit)}
+    params = {"opening": jnp.asarray(opening, jnp.int32), "trigger": jnp.asarray(trigger, jnp.int32),
+              "on_hit": jnp.int32(on_hit)}
     return Bot(name, _first_moves_init, _opening_act, params=params, memory_depth=INF)
 
 
@@ -79,16 +73,16 @@ def _prober4_act(p, s, o, k):
     unjust = unjust + (counting & (o.my_last == C))
     defector = jnp.where(o.t == 20, jnp.abs(just - unjust) <= 2, defector)
     action = jnp.select(
-        [o.t < 20, defector, o.t < 25], [PROBER4_OPENING[jnp.minimum(o.t, 19)], D, C], _tft(o)
+        [o.t < 20, defector, o.t < 25], [PROBER4_OPENING[jnp.minimum(o.t, 19)], D, C], tft(o)
     )
-    return action, (just.astype(jnp.int32), unjust.astype(jnp.int32), defector)
+    return action, (just, unjust, defector)
 
 
 prober4 = Bot("Prober 4", lambda p, k: (jnp.int32(0), jnp.int32(0), jnp.bool_(False)), _prober4_act, memory_depth=INF)
 
 
 def _naive_prober_act(p, s, o, k):
-    action = jnp.where(o.t == 0, C, jnp.where(o.their_last == D, D, _coop_with_prob(k, 1 - p)))
+    action = jnp.where(o.t == 0, C, jnp.where(o.their_last == D, D, coop_with_prob(k, 1 - p)))
     return action, s
 
 
@@ -98,7 +92,7 @@ def naive_prober(p=0.1):
 
 
 def _remorseful_act(p, probing, o, k):
-    random_move = _coop_with_prob(k, 1 - p)
+    random_move = coop_with_prob(k, 1 - p)
     # after a probing defection, forgive one retaliation
     action = jnp.select([o.t == 0, (o.their_last == D) & probing, o.their_last == D], [C, C, D], random_move)
     probing = jnp.where((o.t > 0) & (o.their_last != D), random_move == D, jnp.where(o.their_last == D, False, probing))

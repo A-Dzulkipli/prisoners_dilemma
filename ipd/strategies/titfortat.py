@@ -1,20 +1,8 @@
-"""Tit For Tat variants, ported from axelrod's strategies/titfortat.py."""
-import jax
+"""Tit For Tat variants."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob, memory_one, no_state
+from ipd.bots import INF, Bot, coop_with_prob, defect_at_end, memory_one, no_state, tft
 from ipd.game import C, D
-
-INF = float("inf")
-
-
-def _final_defect(o, action):
-    """FinalTransformer((D,)): defect on the last turn when the length is known."""
-    return jnp.where((o.turns > 0) & (o.t == o.turns - 1), D, action)
-
-
-def _tft(o):
-    return jnp.where(o.their_last == D, D, C)
 
 
 def _prev_init(p, k):
@@ -23,7 +11,7 @@ def _prev_init(p, k):
 
 
 def _shift(prev, o):
-    return jnp.stack([o.their_last, prev[0]]).astype(jnp.int32)
+    return jnp.stack([o.their_last, prev[0]])
 
 
 def _two_tits_act(p, prev, o, k):
@@ -57,8 +45,8 @@ def _dynamic_2tft_act(p, s, o, k):
     n_coop = n_coop + (o.their_last == C)
     punish = (o.their_last == D) | (prev == D)
     p_coop = n_coop / jnp.maximum(o.t, 1)
-    action = jnp.where((o.t > 0) & punish, _coop_with_prob(k, p_coop), C)
-    return action, (n_coop.astype(jnp.int32), o.their_last)
+    action = jnp.where((o.t > 0) & punish, coop_with_prob(k, p_coop), C)
+    return action, (n_coop, o.their_last)
 
 
 dynamic_two_tits_for_tat = Bot(
@@ -100,7 +88,7 @@ def _omega_act(p, s, o, k):
     dead = jnp.select(
         [early, deadlocked, hostile], [dead, jnp.where(dead == 3, 4, 0), dead], jnp.where(changed, dead + 1, 0)
     )
-    return action, jnp.stack([rand, dead, o.their_last]).astype(jnp.int32)
+    return action, jnp.stack([rand, dead, o.their_last])
 
 
 omega_tft = Bot("Omega TFT", _omega_init, _omega_act, memory_depth=INF)
@@ -121,7 +109,7 @@ def _original_gradual_act(p, s, o, k):
     new_punishing = jnp.where(live, keep_punishing | start, punishing)
     count = jnp.where(live & (keep_punishing | start), count + 1, jnp.where(live & stop_punishing, 0, count))
     limit = jnp.where(live & start, limit + 1, limit)
-    return action, (new_calming, new_punishing, count.astype(jnp.int32), limit.astype(jnp.int32))
+    return action, (new_calming, new_punishing, count, limit)
 
 
 original_gradual = Bot("Original Gradual", _original_gradual_init, _original_gradual_act, memory_depth=INF)
@@ -134,7 +122,7 @@ def _gradual_act(p, s, o, k):
     action = jnp.where((punish > 0) | start, D, C)
     new_punish = jnp.where(punish > 0, punish - 1, jnp.where(start, n_def - 1, 0))
     new_calm = jnp.where(punish > 0, calm, jnp.where(calm > 0, calm - 1, jnp.where(start, 2, 0)))
-    return action, jnp.stack([new_punish, new_calm, n_def]).astype(jnp.int32)
+    return action, jnp.stack([new_punish, new_calm, n_def])
 
 
 gradual = Bot("Gradual", lambda p, k: jnp.zeros(3, jnp.int32), _gradual_act, memory_depth=INF)
@@ -146,7 +134,7 @@ def _contrite_act(p, s, o, k):
     provoked = (intended != o.my_last) & (o.my_last == D) & (o.their_last == C)
     action = jnp.where((o.t == 0) | apologise, C, o.their_last)
     contrite = jnp.where(o.t == 0, contrite, jnp.where(apologise, False, contrite | provoked))
-    return action, (contrite, action.astype(jnp.int32))
+    return action, (contrite, action)
 
 
 contrite_tit_for_tat = Bot(
@@ -170,7 +158,7 @@ def _adaptive_tft_act(p, s, o, k):
     action = jnp.where((o.t == 0) | coop | saturated, C, D)
     world = jnp.where(o.t == 0, world, new_world).astype(jnp.float32)
     run = jnp.where(coop, run + 1, 0)
-    return action, (world, run.astype(jnp.int32), need.astype(jnp.int32))
+    return action, (world, run, need)
 
 
 adaptive_tit_for_tat = Bot("Adaptive Tit For Tat", _adaptive_tft_init, _adaptive_tft_act, memory_depth=INF)
@@ -179,7 +167,7 @@ adaptive_tit_for_tat = Bot("Adaptive Tit For Tat", _adaptive_tft_init, _adaptive
 def _spiteful_tft_act(p, s, o, k):
     retaliating, prev = s
     retaliating = retaliating | ((o.their_last == D) & (prev == D))
-    return jnp.where(retaliating, D, _tft(o)), (retaliating, o.their_last)
+    return jnp.where(retaliating, D, tft(o)), (retaliating, o.their_last)
 
 
 spiteful_tit_for_tat = Bot(
@@ -196,13 +184,13 @@ slow_tit_for_two_tats_2 = Bot(
     "Slow Tit For Two Tats 2", lambda p, k: jnp.int32(-1), _slow_tf2t2_act, memory_depth=2
 )
 
-alexei = Bot("Alexei", no_state, lambda p, s, o, k: (_final_defect(o, _tft(o)), s), memory_depth=INF)
+alexei = Bot("Alexei", no_state, lambda p, s, o, k: (defect_at_end(o, tft(o)), s), memory_depth=INF)
 
 
 def _eugine_nier_act(p, n_def, o, k):
     n_def = n_def + (o.their_last == D)
     action = jnp.where(o.t == 0, C, jnp.where(n_def >= 5, D, o.their_last))
-    return _final_defect(o, action), n_def.astype(jnp.int32)
+    return defect_at_end(o, action), n_def
 
 
 eugine_nier = Bot("EugineNier", lambda p, k: jnp.int32(0), _eugine_nier_act, memory_depth=INF)
@@ -212,7 +200,7 @@ def _n_tits_act(p, s, o, k):
     count, run = s  # retaliations left, opponent's current D run
     run = jnp.where(o.their_last == D, run + 1, 0)
     count = jnp.where((p["M"] == 0) | (run >= p["M"]), p["N"], count)
-    return jnp.where(count > 0, D, C), jnp.stack([jnp.maximum(count - 1, 0), run]).astype(jnp.int32)
+    return jnp.where(count > 0, D, C), jnp.stack([jnp.maximum(count - 1, 0), run])
 
 
 def n_tits_for_m_tats(N=3, M=2):
@@ -225,10 +213,10 @@ def n_tits_for_m_tats(N=3, M=2):
 
 def _michaelos_act(p, is_defector, o, k):
     test = ~is_defector & (o.my_last == D) & (o.their_last == C)
-    coin = _coop_with_prob(k, 0.5)
+    coin = coop_with_prob(k, 0.5)
     action = jnp.select([o.t == 0, is_defector, test], [C, D, coin], o.their_last)
     is_defector = is_defector | (test & (coin == D))
-    return _final_defect(o, action), is_defector
+    return defect_at_end(o, action), is_defector
 
 
 michaelos = Bot("Michaelos", lambda p, k: jnp.bool_(False), _michaelos_act, memory_depth=INF, stochastic=True)
@@ -236,7 +224,7 @@ michaelos = Bot("Michaelos", lambda p, k: jnp.bool_(False), _michaelos_act, memo
 
 def _random_tft_act(p, s, o, k):
     # TFT on odd rounds, cooperate with probability p on even rounds after the first
-    action = jnp.where(o.t == 0, C, jnp.where(o.t % 2 == 1, o.their_last, _coop_with_prob(k, p)))
+    action = jnp.where(o.t == 0, C, jnp.where(o.t % 2 == 1, o.their_last, coop_with_prob(k, p)))
     return action, s
 
 

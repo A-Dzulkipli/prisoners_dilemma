@@ -1,4 +1,4 @@
-"""Desperate, Hopeless and Willing, ported from axelrod's mutual.py."""
+"""Desperate, Hopeless and Willing."""
 from ipd.bots import memory_one
 
 # each is memory-one with a random (p = 0.5) first move

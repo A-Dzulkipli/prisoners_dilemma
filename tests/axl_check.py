@@ -14,6 +14,7 @@ from ipd.engine import play_match
 from ipd.game import C, D, Config
 
 KEY = jax.random.key(0)
+AXL = {s.name: s for s in axl.all_strategies}
 TO_AXL = {C: axl.Action.C, D: axl.Action.D}
 CLASSIC_AXL = [
     (bots.cooperator, axl.Cooperator),
@@ -58,10 +59,10 @@ def _report(ours, theirs, label):
         )
 
 
-def assert_same_moves(bot, axl_cls, turns=200, n_seqs=40):
-    """Exact move-for-move check for a deterministic bot."""
+def assert_same_moves(bot, axl_cls, turns=200, n_seqs=40, seqs=None):
+    """Exact move-for-move check for a deterministic bot, against seqs (default: random sequences) and the classics."""
     cfg = Config(turns=turns)
-    seqs = opponent_sequences(n_seqs, turns)
+    seqs = opponent_sequences(n_seqs, turns) if seqs is None else np.asarray(seqs)
     ours = jax.jit(jax.vmap(lambda s: play_match(bot, sequence_bot(s), KEY, cfg).actions[:, 0]))(seqs)
     for i, seq in enumerate(seqs):
         history = axl.Match((axl_cls(), MockPlayer([TO_AXL[int(a)] for a in seq])), turns=turns).play()

@@ -1,4 +1,4 @@
-"""Q-learning strategies, ported from axelrod's qlearner.py.
+"""Q-learning strategies.
 
 The library's state string is their last 12 moves plus their total number of cooperations (an
 integer count, although the docstring calls it a proportion). The count only grows, and it grows
@@ -10,7 +10,7 @@ since the update the library makes to the previous chain's state is never read a
 import jax
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob
+from ipd.bots import INF, Bot, coop_with_prob
 from ipd.game import C
 
 MEMORY = 12
@@ -34,13 +34,13 @@ def _q_act(p, s, o, k):
     V = s["V"].at[prev].set(Q[prev].max())
     Q, V = jnp.where(reset, 0.0, Q), jnp.where(reset, 0.0, V)
     greedy = jnp.where(Q[run, C] >= Q[run, 1 - C], C, 1 - C)
-    action = jnp.where(jax.random.uniform(k1) < 0.9, greedy, _coop_with_prob(k2, 0.5))
-    return action, dict(Q=Q, V=V, run=run.astype(jnp.int32), prev_action=action.astype(jnp.int32))
+    action = jnp.where(jax.random.uniform(k1) < 0.9, greedy, coop_with_prob(k2, 0.5))
+    return action, dict(Q=Q, V=V, run=run, prev_action=action)
 
 
 def q_learner(name, learning_rate, discount_rate):
     return Bot(name, _q_init, _q_act, params=jnp.array([learning_rate, discount_rate], jnp.float32),
-               memory_depth=float("inf"), stochastic=True)
+               memory_depth=INF, stochastic=True)
 
 
 STRATEGIES = [

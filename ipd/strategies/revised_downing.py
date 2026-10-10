@@ -1,8 +1,8 @@
-"""Revised Downing, ported from axelrod's revised_downing.py."""
+"""Revised Downing."""
 import jax.numpy as jnp
 import numpy as np
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -50,13 +50,13 @@ def _revised_downing_act(ties, s, o, k):
     alt_ok = jnp.where(alt == 0, (tie & 2) == 0, alt >= 0)
     c_ge_alt = jnp.where(c == alt, (tie & 4) == 0, c >= alt)
     action = jnp.select([o.t == 0, c_ok & c_ge_alt, c_ok | alt_ok], [C, C, 1 - o.my_last], D)
-    new_s = (jnp.stack([nice1, total_c, nice2, total_d]).astype(jnp.int32), jnp.maximum(o.my_last, 0))
+    new_s = (jnp.stack([nice1, total_c, nice2, total_d]), jnp.maximum(o.my_last, 0))
     return action, new_s
 
 
 def revised_downing(max_turns=1000):
     """The float64 tie table covers up to max_turns of my defections."""
-    return Bot("Revised Downing", _init, _revised_downing_act, _tie_table(max_turns), memory_depth=float("inf"))
+    return Bot("Revised Downing", _init, _revised_downing_act, _tie_table(max_turns), memory_depth=INF)
 
 
 STRATEGIES = [revised_downing()]

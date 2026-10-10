@@ -2,7 +2,6 @@
 
 Run: python scripts/axelrod_tournaments.py  (needs axelrod installed)
 """
-import re
 import warnings
 
 import axelrod as axl
@@ -13,7 +12,6 @@ from ipd.engine import round_robin
 from ipd.game import Config
 from ipd.strategies import axelrod_first, axelrod_second_a, axelrod_second_b
 
-warnings.simplefilter("ignore")
 LIBRARY = {s.name: s for s in axl.all_strategies}
 
 FIRST = axelrod_first.STRATEGIES + [bots.tit_for_tat, bots.grudger, bots.random_bot()]
@@ -26,21 +24,15 @@ FIRST_PUBLISHED = {
     "First by Graaskamp": 9, "First by Downing": 10, "First by Feld": 11, "First by Joss": 12,
     "First by Tullock": 13, "First by Anonymous": 14, "Random": 15,
 }
-ORDINALS = {w: i + 1 for i, w in enumerate(
-    "first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth "
-    "fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth".split())}
-
-
-def second_published():
-    """Ranks out of 63 in Axelrod (1980b), parsed from the library docstrings (TFT won)."""
-    ranks = {"Tit For Tat": 1}
-    for b in SECOND:
-        if not b.name.startswith("Second by"):
-            continue
-        m = re.search(r"came (?:in )?(\d+|[a-z]+)", LIBRARY[b.name].__doc__ or "")
-        if m:
-            ranks[b.name] = int(re.sub(r"\D", "", m.group(1)) or 0) or ORDINALS.get(m.group(1))
-    return ranks
+# Axelrod (1980b) ranks out of 63, where the library docstrings give them (TFT won)
+SECOND_PUBLISHED = {
+    "Tit For Tat": 1, "Second by Borufsen": 3, "Second by Cave": 4, "Second by WmAdams": 5,
+    "Second by GraaskampKatzen": 6, "Second by Weiner": 7, "Second by Harrington": 8,
+    "Second by Tideman and Chieruzzi": 9, "Second by Getzler": 11, "Second by Leyvraz": 12, "Second by White": 13,
+    "Second by Black": 15, "Second by RichardHufford": 16, "Second by Yamachi": 17, "Second by Colbert": 18,
+    "Second by Mikkelson": 20, "Second by Rowsam": 21, "Second by Appold": 22, "Second by Tranquilizer": 27,
+    "Second by Tester": 46,
+}
 
 
 def ours(players, reps):
@@ -67,7 +59,8 @@ def table(players, published):
 
 
 if __name__ == "__main__":
+    warnings.simplefilter("ignore")
     print("First tournament (all 15 entries, 200 turns)\n")
     table(FIRST, FIRST_PUBLISHED)
     print("\nSecond tournament (26 of 63 entries, 200 turns; published ranks are out of 63)\n")
-    table(SECOND, second_published())
+    table(SECOND, SECOND_PUBLISHED)

@@ -1,4 +1,4 @@
-"""Hidden Markov model strategies, ported from axelrod's hmm.py.
+"""Hidden Markov model strategies.
 
 One act serves every HMM: params hold the two transition matrices (conditioned on their last
 move), the emission probabilities, the initial state and the opening move.
@@ -6,7 +6,7 @@ move), the emission probabilities, the initial state and the opening move.
 import jax
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob
+from ipd.bots import INF, Bot, coop_with_prob
 from ipd.game import C
 
 
@@ -14,11 +14,11 @@ def _hmm_act(p, state, o, k):
     k1, k2 = jax.random.split(k)
     row = jnp.where(o.their_last == C, p["t_C"][state], p["t_D"][state])
     nxt = jax.random.categorical(k1, jnp.log(row))
-    action = jnp.where(o.t == 0, p["first"], _coop_with_prob(k2, p["emit"][nxt]))
-    return action, jnp.where(o.t == 0, state, nxt).astype(jnp.int32)
+    action = jnp.where(o.t == 0, p["first"], coop_with_prob(k2, p["emit"][nxt]))
+    return action, jnp.where(o.t == 0, state, nxt)
 
 
-def hmm(name, t_C, t_D, emissions, initial_state, initial_action, memory_depth=float("inf")):
+def hmm(name, t_C, t_D, emissions, initial_state, initial_action, memory_depth=INF):
     params = {"t_C": jnp.asarray(t_C, jnp.float32), "t_D": jnp.asarray(t_D, jnp.float32),
               "emit": jnp.asarray(emissions, jnp.float32), "init": jnp.int32(initial_state),
               "first": jnp.int32(initial_action)}

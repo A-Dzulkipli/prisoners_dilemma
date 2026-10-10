@@ -1,4 +1,4 @@
-"""Gambler strategies (stochastic lookup tables), ported from axelrod's gambler.py."""
+"""Gambler strategies (stochastic lookup tables)."""
 from ipd.strategies.lookerup import lookup
 
 

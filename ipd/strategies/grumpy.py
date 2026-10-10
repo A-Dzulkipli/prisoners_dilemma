@@ -1,7 +1,7 @@
-"""Grumpy, ported from axelrod's grumpy.py."""
+"""Grumpy."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -16,7 +16,7 @@ def grumpy_bot(starting_state="Nice", grumpy_threshold=10, nice_threshold=-10):
     params = {"grumpy_threshold": jnp.int32(grumpy_threshold), "nice_threshold": jnp.int32(nice_threshold)}
     init_grumpy = starting_state == "Grumpy"
     return Bot("Grumpy", lambda p, k: (jnp.int32(0), jnp.bool_(init_grumpy)), _grumpy_act, params,
-               memory_depth=float("inf"))
+               memory_depth=INF)
 
 
 STRATEGIES = [grumpy_bot()]

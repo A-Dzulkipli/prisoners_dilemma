@@ -1,15 +1,13 @@
-"""Forgiver and Forgiving Tit For Tat, ported from axelrod's strategies/forgiver.py."""
+"""Forgiver and Forgiving Tit For Tat."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
-
-INF = float("inf")
 
 
 def _defects_over_10pct(n_def, o):
     n_def = n_def + (o.their_last == D)
-    return 10 * n_def > o.t, n_def.astype(jnp.int32)
+    return 10 * n_def > o.t, n_def
 
 
 def _forgiver_act(p, n_def, o, k):

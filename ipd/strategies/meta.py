@@ -1,4 +1,4 @@
-"""Meta strategies, ported from axelrod's meta.py.
+"""Meta strategies.
 
 A meta bot runs its whole team every turn and combines their proposals. As in the library, each team
 member's own history is its own proposals (not the move the meta played), and MetaWinner scores each
@@ -10,29 +10,31 @@ from functools import cache
 import jax
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot, tft
 from ipd.game import C, D
 
-INF = float("inf")
+HUNTERS = ("Defector Hunter", "Alternator Hunter", "Random Hunter", "Math Constant Hunter", "Cycle Hunter",
+           "Eventual Cycle Hunter")
 
 
 @cache
 def _library_team(kind):
     """Library team for a meta class: obey_axelrod strategies minus metas, filtered like meta.py."""
     import axelrod as axl
-    from axelrod.classifier import Classifiers
     from axelrod.strategies.meta import MetaPlayer
 
+    depth, stochastic = axl.Classifiers["memory_depth"], axl.Classifiers["stochastic"]
     keep = {
         "all": lambda s: True,
-        "memory_one": lambda s: Classifiers["memory_depth"](s()) <= 1,
-        "finite_memory": lambda s: Classifiers["memory_depth"](s()) < INF,
-        "long_memory": lambda s: Classifiers["memory_depth"](s()) == INF,
-        "deterministic": lambda s: not Classifiers["stochastic"](s()),
-        "stochastic": lambda s: Classifiers["stochastic"](s()),
+        "memory_one": lambda s: depth(s) <= 1,
+        "finite_memory": lambda s: depth(s) < INF,
+        "long_memory": lambda s: depth(s) == INF,
+        "deterministic": lambda s: not stochastic(s),
+        "stochastic": stochastic,
     }[kind]
-    ordinary = [s for s in axl.all_strategies if not issubclass(s, MetaPlayer) and Classifiers.obey_axelrod(s())]
-    return tuple(s.name for s in ordinary if keep(s))
+    # class names: some instances rename themselves (e.g. "Soft Go By Majority")
+    players = [(s.name, s()) for s in axl.all_strategies if not issubclass(s, MetaPlayer)]
+    return tuple(name for name, s in players if axl.Classifiers.obey_axelrod(s) and keep(s))
 
 
 @cache
@@ -46,14 +48,11 @@ def team(kind="all"):
     return [_registry()[name] for name in _library_team(kind)]
 
 
-def _hunters(aggressive=False):
-    names = ["Defector Hunter", "Alternator Hunter", "Random Hunter", "Math Constant Hunter", "Cycle Hunter",
-             "Eventual Cycle Hunter"] + ["Cooperator Hunter"] * aggressive
-    return [_registry()[n] for n in names]
+def meta_bot(name, members, choose, nice=False):
+    """Run every member each turn and play choose(proposals, scores, obs, key).
 
-
-def _meta_bot(name, members, choose, stochastic, nice=False):
-    """choose(proposals, scores, obs, key) -> action. nice: never defect before the opponent has."""
+    nice: never defect before the opponent has.
+    """
     n = len(members)
 
     def init(p, key):
@@ -78,17 +77,17 @@ def _meta_bot(name, members, choose, stochastic, nice=False):
             action = jnp.where(wronged, action, C)
         return action, (tuple(new_states), proposals, scores, wronged)
 
+    stochastic = choose in (_ensemble, _mixer) or any(b.stochastic for b in members)
     return Bot(name, init, act, memory_depth=INF, stochastic=stochastic)
 
 
 def _majority(props, scores, o, k):
-    n_d = props.sum()
-    return jnp.where(2 * n_d > props.shape[0], D, C)
+    # ties go to C
+    return jnp.where(2 * props.sum() > props.shape[0], D, C)
 
 
 def _minority(props, scores, o, k):
-    n_d = props.sum()
-    return jnp.where(2 * n_d < props.shape[0], D, C)
+    return jnp.where(2 * props.sum() < props.shape[0], D, C)
 
 
 def _winner(props, scores, o, k):
@@ -110,44 +109,9 @@ def _mixer(props, scores, o, k):
 
 
 def _hunt(props, scores, o, k):
-    tft = jnp.where((o.t > 100) & (o.their_last == D), D, C)
-    return jnp.where(jnp.any(props == D), D, tft)
-
-
-def meta_majority(members=None, name="Meta Majority"):
-    """Majority vote of the team, ties go to C."""
-    members = team() if members is None else members
-    return _meta_bot(name, members, _majority, any(b.stochastic for b in members))
-
-
-def meta_minority(members=None, name="Meta Minority"):
-    """Minority vote of the team, ties go to C."""
-    members = team() if members is None else members
-    return _meta_bot(name, members, _minority, any(b.stochastic for b in members))
-
-
-def meta_winner(members=None, name="Meta Winner", nice=False):
-    """Plays the proposal of the best scoring team member so far (C if any tied best proposes C)."""
-    members = team() if members is None else members
-    return _meta_bot(name, members, _winner, any(b.stochastic for b in members), nice)
-
-
-def meta_winner_ensemble(members=None, name="Meta Winner Ensemble", nice=False):
-    """Plays the proposal of a random member among the top 8% scorers so far."""
-    members = team() if members is None else members
-    return _meta_bot(name, members, _ensemble, True, nice)
-
-
-def meta_mixer(members=None, name="Meta Mixer"):
-    """Plays the proposal of a uniformly random team member each turn."""
-    members = team() if members is None else members
-    return _meta_bot(name, members, _mixer, True)
-
-
-def meta_hunter(aggressive=False):
-    """Defects if any hunter does; otherwise C, or TFT after 100 turns."""
-    name = "Meta Hunter Aggressive" if aggressive else "Meta Hunter"
-    return _meta_bot(name, _hunters(aggressive), _hunt, False)
+    # D if any hunter proposes D, else C, or TFT after 100 turns
+    tft_late = jnp.where((o.t > 100) & (o.their_last == D), D, C)
+    return jnp.where(jnp.any(props == D), D, tft_late)
 
 
 def _memory_decay_act(p, s, o, k):
@@ -165,9 +129,7 @@ def _memory_decay_act(p, s, o, k):
     pick_c = jax.random.uniform(k4) * (n_c + n_d) < n_c
     n_c, n_d = n_c - delete * pick_c, n_d - delete * ~pick_c
     ncs = p["gain"] * n_c + p["loss"] * n_d
-    tft = jnp.where(o.t == 0, C, o.their_last)
-    action = jnp.where(late, jnp.where(ncs < 0, D, C), tft)
-    return action, (n_c.astype(jnp.int32), n_d.astype(jnp.int32))
+    return jnp.where(late, jnp.where(ncs < 0, D, C), tft(o)), (n_c, n_d)
 
 
 def memory_decay(p_delete=0.1, p_alter=0.03, loss=-2.0, gain=1.0, duration=15):
@@ -180,28 +142,29 @@ def memory_decay(p_delete=0.1, p_alter=0.03, loss=-2.0, gain=1.0, duration=15):
 
 # by_name() imports this module, so STRATEGIES must exist (empty) while the teams are being looked up
 STRATEGIES = []
+_hunters = [_registry()[name] for name in HUNTERS]
 STRATEGIES += [
     memory_decay(),
-    meta_hunter(),
-    meta_hunter(aggressive=True),
-    meta_majority(),
-    meta_majority(team("memory_one"), "Meta Majority Memory One"),
-    meta_majority(team("finite_memory"), "Meta Majority Finite Memory"),
-    meta_majority(team("long_memory"), "Meta Majority Long Memory"),
-    meta_minority(),
-    meta_mixer(),
-    meta_winner(),
-    meta_winner(team("deterministic"), "Meta Winner Deterministic"),
-    meta_winner_ensemble(),
-    meta_winner(team("memory_one"), "Meta Winner Memory One"),
-    meta_winner(team("finite_memory"), "Meta Winner Finite Memory"),
-    meta_winner(team("long_memory"), "Meta Winner Long Memory"),
-    meta_winner(team("stochastic"), "Meta Winner Stochastic"),
-    meta_winner_ensemble(team("deterministic"), "NMWE Deterministic", nice=True),
-    meta_winner_ensemble(team("finite_memory"), "NMWE Finite Memory", nice=True),
-    meta_winner_ensemble(team("long_memory"), "NMWE Long Memory", nice=True),
-    meta_winner_ensemble(team("memory_one"), "NMWE Memory One", nice=True),
-    meta_winner_ensemble(team("stochastic"), "NMWE Stochastic", nice=True),
-    meta_winner(name="Nice Meta Winner", nice=True),
-    meta_winner_ensemble(name="Nice Meta Winner Ensemble", nice=True),
+    meta_bot("Meta Hunter", _hunters, _hunt),
+    meta_bot("Meta Hunter Aggressive", _hunters + [_registry()["Cooperator Hunter"]], _hunt),
+    meta_bot("Meta Majority", team(), _majority),
+    meta_bot("Meta Majority Memory One", team("memory_one"), _majority),
+    meta_bot("Meta Majority Finite Memory", team("finite_memory"), _majority),
+    meta_bot("Meta Majority Long Memory", team("long_memory"), _majority),
+    meta_bot("Meta Minority", team(), _minority),
+    meta_bot("Meta Mixer", team(), _mixer),
+    meta_bot("Meta Winner", team(), _winner),
+    meta_bot("Meta Winner Deterministic", team("deterministic"), _winner),
+    meta_bot("Meta Winner Ensemble", team(), _ensemble),
+    meta_bot("Meta Winner Memory One", team("memory_one"), _winner),
+    meta_bot("Meta Winner Finite Memory", team("finite_memory"), _winner),
+    meta_bot("Meta Winner Long Memory", team("long_memory"), _winner),
+    meta_bot("Meta Winner Stochastic", team("stochastic"), _winner),
+    meta_bot("NMWE Deterministic", team("deterministic"), _ensemble, nice=True),
+    meta_bot("NMWE Finite Memory", team("finite_memory"), _ensemble, nice=True),
+    meta_bot("NMWE Long Memory", team("long_memory"), _ensemble, nice=True),
+    meta_bot("NMWE Memory One", team("memory_one"), _ensemble, nice=True),
+    meta_bot("NMWE Stochastic", team("stochastic"), _ensemble, nice=True),
+    meta_bot("Nice Meta Winner", team(), _winner, nice=True),
+    meta_bot("Nice Meta Winner Ensemble", team(), _ensemble, nice=True),
 ]

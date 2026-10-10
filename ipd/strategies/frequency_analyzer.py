@@ -1,7 +1,7 @@
-"""FrequencyAnalyzer, ported from axelrod's frequency_analyzer.py."""
+"""FrequencyAnalyzer."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot, tft
 from ipd.game import C, D
 
 
@@ -17,13 +17,12 @@ def _frequency_analyzer_act(p, s, o, k):
     update = o.t > 5
     seen = seen.at[last_key].add(update)
     coops = coops.at[last_key].add(update & (o.their_last == C))
-    tft = jnp.where(o.their_last == D, D, C)
     # the library divides by the match length so far, not by the times the key was seen
     use_table = (o.t >= 30) & (seen[cur_key] > 0)
-    action = jnp.where(use_table, jnp.where(4 * coops[cur_key] > o.t, C, D), jnp.where(o.t == 0, C, tft))
+    action = jnp.where(use_table, jnp.where(4 * coops[cur_key] > o.t, C, D), tft(o))
     return action, (seen, coops, round1, round0)
 
 
-frequency_analyzer = Bot("FrequencyAnalyzer", _init, _frequency_analyzer_act, memory_depth=float("inf"))
+frequency_analyzer = Bot("FrequencyAnalyzer", _init, _frequency_analyzer_act, memory_depth=INF)
 
 STRATEGIES = [frequency_analyzer]

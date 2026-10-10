@@ -1,10 +1,8 @@
-"""Go By Majority family, ported from axelrod's gobymajority.py."""
+"""Go By Majority family."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
-
-INF = float("inf")
 
 
 def _gbm_init(p, k):
@@ -22,11 +20,11 @@ def _gbm_act(p, s, o, k):
         d_minus_c = d_minus_c - (leaving == D) + (leaving == C)
         buf = jnp.where(o.t > 0, buf.at[slot].set(o.their_last), buf)
     action = jnp.where((d_minus_c > 0) | ((d_minus_c == 0) & ~p["soft"]), D, C)
-    return action, (buf, d_minus_c.astype(jnp.int32))
+    return action, (buf, d_minus_c)
 
 
 def go_by_majority(memory_depth=INF, soft=True, name="Go By Majority"):
-    """Defect when the opponent defected more than cooperated (in the last memory_depth rounds); soft breaks ties with C."""
+    """Defect when the opponent defected more than cooperated in the last memory_depth rounds; soft: ties go to C."""
     window = 0 if memory_depth == INF else memory_depth
     params = {"window": jnp.zeros(window, jnp.int32), "soft": jnp.bool_(soft)}
     return Bot(name, _gbm_init, _gbm_act, params=params, memory_depth=memory_depth)

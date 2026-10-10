@@ -12,7 +12,7 @@ The simulator is JAX: one engine, jit/vmap-able end to end.
 - The engine checks T > R > P > S and 2R > T + S per matrix, and warns rather than raises, since
   non-PD matrices are a legitimate experiment.
 - A match runs a fixed `turns`. With `prob_end`, the length is sampled once per match, and the match
-  runs to `T_max` with a mask.
+  runs to `t_max` with a mask.
 - Noise: after both bots act, each action flips independently with probability `noise`. Both bots
   then observe the **flipped** actions, as in `axelrod`.
 
@@ -22,6 +22,9 @@ class Bot(NamedTuple):
     name: str
     init: Callable[[params, key], State]                     # State is a pytree of fixed-shape arrays
     act:  Callable[[params, State, Obs, key], tuple[int, State]]
+    params: Any = ()
+    memory_depth: float = 1
+    stochastic: bool = False
 ```
 - `Obs` holds:
   - `my_last` and `their_last`: ints, -1 on round 0
@@ -30,7 +33,7 @@ class Bot(NamedTuple):
   - `my_payoff`: the bot's own matrix
   - `their_payoff`: the opponent's matrix, or zeros when it is not revealed
 
-  Bots that need more history keep it in `State` as a fixed-length buffer (up to `T_max`).
+  Bots that need more history keep it in `State` as a fixed-length buffer (up to `t_max`).
 - No Python control flow on traced values (use `jnp.where` / `lax.cond`), no I/O, no globals.
   All randomness comes from `key`.
 - `params` is an array pytree, so a bot family is one `act` plus many parameter vectors.
@@ -41,10 +44,10 @@ class Bot(NamedTuple):
   `scores [T, 2]` and `length`. It is pure, so vmap over keys, or over params with
   `bot._replace(params=p)`.
 - `round_robin(bots, cfg, payoffs) -> TournamentResult` returns a mean score-per-turn matrix of
-  `[n, n, reps]`, plus cooperation rates.
+  `[n, n, reps]`, plus cooperation rates, the `cfg` and the `payoffs`.
 - `moran(scores, population, key)` runs a birth-death process on a `[n_types, n_types]` mean score
   matrix and does not replay matches. Vmap it over keys to get fixation probabilities.
-- `cfg` is one frozen dataclass: turns, prob_end, T_max, noise, reps, seed, and reveal_opponent_payoff.
+- `cfg` is one frozen dataclass: turns, prob_end, t_max, noise, reps, seed, and reveal_opponent_payoff.
   It is saved with every result, along with `payoffs`.
 - Hand-written bots that differ in code are dispatched with `lax.switch` on a bot index. Bot families
   that share an `act` are vmapped over `params`.

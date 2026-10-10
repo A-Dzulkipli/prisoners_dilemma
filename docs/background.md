@@ -64,11 +64,11 @@ Yes, JAX is the right tool. On Colab it gives you a free T4/L4 GPU, and the work
 **Remaining costs, now that every bot is your own**
 - **Small runs aren't faster.** Rounds are sequential, so one 200-turn match is about 200 tiny GPU steps.
   The GPU only pays when the batch is wide, so write experiments as sweeps.
-- **Recompiles.** Changing `T_max`, the bot count, or any static arg recompiles, which takes seconds
+- **Recompiles.** Changing `t_max`, the bot count, or any static arg recompiles, which takes seconds
   on Colab. Keep shapes fixed and pad.
 - **Mixed hand-written bots** dispatched with `lax.switch` under vmap compute every branch. Heuristic bots
   are a handful of ops each, so this barely matters below a few hundred distinct bots.
-- **Unbounded memory** (e.g. "count every defection so far") becomes a counter or a `T_max` buffer
+- **Unbounded memory** (e.g. "count every defection so far") becomes a counter or a `t_max` buffer
   in state. This is easy, but it has to be designed in.
 - **LLM bots** are the one real exception, since they can't run inside `jit`. Run them outside the engine
   on the same `Obs`/`act` contract, or distill them into a JAX policy.

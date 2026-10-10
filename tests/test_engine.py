@@ -1,43 +1,18 @@
-import warnings
-
 import axelrod as axl
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from axl_check import CLASSIC_AXL, KEY
 
 from ipd import bots
 from ipd.engine import moran, play_match, round_robin
 from ipd.game import C, D, Config
 
-AXL = {
-    "Cooperator": axl.Cooperator,
-    "Defector": axl.Defector,
-    "Alternator": axl.Alternator,
-    "Tit For Tat": axl.TitForTat,
-    "Suspicious Tit For Tat": axl.SuspiciousTitForTat,
-    "Win-Stay Lose-Shift": axl.WinStayLoseShift,
-    "Tit For 2 Tats": axl.TitFor2Tats,
-    "Grudger": axl.Grudger,
-}
-KEY = jax.random.key(0)
-
-
-def axl_actions(a, b, turns):
-    history = axl.Match((AXL[a.name](), AXL[b.name]()), turns=turns).play()
-    return np.array([[int(x == axl.Action.D), int(y == axl.Action.D)] for x, y in history])
-
-
-@pytest.mark.parametrize("a", bots.CLASSICS, ids=lambda b: b.name)
-def test_actions_match_axelrod(a):
-    for b in bots.CLASSICS:
-        ours = play_match(a, b, KEY, Config(turns=50)).actions
-        np.testing.assert_array_equal(ours, axl_actions(a, b, 50), err_msg=f"{a.name} vs {b.name}")
-
 
 def test_tournament_matches_axelrod():
-    ours = round_robin(bots.CLASSICS, Config(reps=1)).scores[:, :, 0]
-    players = [AXL[b.name]() for b in bots.CLASSICS]
+    ours = round_robin([b for b, _ in CLASSIC_AXL], Config(reps=1)).scores[:, :, 0]
+    players = [cls() for _, cls in CLASSIC_AXL]
     theirs = axl.Tournament(players, turns=200, repetitions=1).play(progress_bar=False).payoff_matrix
     np.testing.assert_allclose(ours, theirs, atol=1e-5)
 

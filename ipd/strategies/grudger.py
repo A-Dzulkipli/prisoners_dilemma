@@ -1,11 +1,13 @@
-"""Grudger variants, ported from axelrod's strategies/grudger.py."""
+"""Grudger variants."""
 import jax.numpy as jnp
 import numpy as np
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot, grudger_bot
 from ipd.game import C, D
 
-INF = float("inf")
+
+aggravater = grudger_bot("Aggravater", D, 3)
+spiteful_cc = grudger_bot("SpitefulCC", C, 2)
 
 
 def _flag_init(p, k):
@@ -17,7 +19,7 @@ def _forgetful_grudger_act(p, s, o, k):
     reset = memory == 10
     grudged = (grudged & ~reset) | (o.their_last == D)
     memory = jnp.where(reset, 0, memory) + grudged
-    return jnp.where(grudged, D, C), (grudged, memory.astype(jnp.int32))
+    return jnp.where(grudged, D, C), (grudged, memory)
 
 
 forgetful_grudger = Bot(
@@ -33,14 +35,6 @@ def _opposite_grudger_act(p, seen_c, o, k):
 opposite_grudger = Bot("Opposite Grudger", _flag_init, _opposite_grudger_act, memory_depth=INF)
 
 
-def _aggravater_act(p, seen_d, o, k):
-    seen_d = seen_d | (o.their_last == D)
-    return jnp.where((o.t < 3) | seen_d, D, C), seen_d
-
-
-aggravater = Bot("Aggravater", _flag_init, _aggravater_act, memory_depth=INF)
-
-
 def _soft_grudger_act(p, s, o, k):
     # punish n consecutive opponent defections with d defections, then c cooperations
     grudged, memory, run = s
@@ -50,7 +44,7 @@ def _soft_grudger_act(p, s, o, k):
     done = memory == p["d"] - 1 + p["c"]
     grudged = jnp.where(grudged, ~done, run >= p["n"])
     memory = jnp.where(done, 0, memory)
-    return action, (grudged, memory.astype(jnp.int32), run.astype(jnp.int32))
+    return action, (grudged, memory, run)
 
 
 def general_soft_grudger(n=1, d=4, c=2, name="General Soft Grudger", memory_depth=INF):
@@ -76,14 +70,6 @@ def _easy_go_act(p, seen_d, o, k):
 easy_go = Bot("EasyGo", _flag_init, _easy_go_act, memory_depth=INF)
 
 
-def _spiteful_cc_act(p, seen_d, o, k):
-    seen_d = seen_d | (o.their_last == D)
-    return jnp.where((o.t >= 2) & seen_d, D, C), seen_d
-
-
-spiteful_cc = Bot("SpitefulCC", _flag_init, _spiteful_cc_act, memory_depth=INF)
-
-
 def _capri_table():
     """Cooperate-table over the last three rounds, oldest first, each round coded 2 * mine + theirs."""
     cc, cd, dc, dd = (0, 0), (0, 1), (1, 0), (1, 1)
@@ -104,7 +90,7 @@ CAPRI_TABLE = _capri_table()
 def _capri_act(p, h, o, k):
     # h codes the last three rounds; the empty history counts as mutual cooperation
     h = jnp.where(o.t == 0, h, (4 * h + 2 * o.my_last + o.their_last) % 64)
-    return CAPRI_TABLE[h], h.astype(jnp.int32)
+    return CAPRI_TABLE[h], h
 
 
 capri = Bot("CAPRI", lambda p, k: jnp.int32(0), _capri_act, memory_depth=3)

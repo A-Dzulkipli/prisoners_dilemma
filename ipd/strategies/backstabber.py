@@ -1,11 +1,8 @@
-"""BackStabber and DoubleCrosser, ported from axelrod's backstabber.py."""
+"""BackStabber and DoubleCrosser."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot, defect_at_end
 from ipd.game import C, D
-from ipd.strategies.axelrod_first import _last_two_defect
-
-INF = float("inf")
 
 
 def _init(p, k):
@@ -22,7 +19,7 @@ def _act(p, s, o, k):
     # rounds 8 to 180 against an opponent clean in its first 7 moves: defect only after two Ds
     alt = p & (early_def == 0) & (o.t >= 7) & (o.t < 180)
     action = jnp.where(alt, jnp.where((o.their_last == D) & (their_prev == D), D, C), backstab)
-    return _last_two_defect(o, action), (n_def, early_def, o.their_last)
+    return defect_at_end(o, action, 2), (n_def, early_def, o.their_last)
 
 
 backstabber = Bot("BackStabber", _init, _act, jnp.bool_(False), memory_depth=INF)

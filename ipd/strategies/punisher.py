@@ -1,10 +1,8 @@
-"""Punisher variants, ported from axelrod's strategies/punisher.py."""
+"""Punisher variants."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
-
-INF = float("inf")
 
 
 def _punisher_init(p, k):
@@ -26,7 +24,7 @@ def _punisher_act(p, s, o, k):
     action = jnp.where((grudged == 1) | start, D, C)
     memory = memory + (grudged == 1)
     grudged = grudged | start
-    return action, jnp.stack([mem_length, grudged, memory, n_coop, n_def]).astype(jnp.int32)
+    return action, jnp.stack([mem_length, grudged, memory, n_coop, n_def])
 
 
 punisher = Bot("Punisher", _punisher_init, _punisher_act, jnp.int32(1), memory_depth=INF)
@@ -35,7 +33,7 @@ inverse_punisher = Bot("Inverse Punisher", _punisher_init, _punisher_act, jnp.in
 
 def _level_punisher_act(p, n_def, o, k):
     n_def = n_def + (o.their_last == D)
-    return jnp.where((o.t >= 10) & (5 * n_def > o.t), D, C), n_def.astype(jnp.int32)
+    return jnp.where((o.t >= 10) & (5 * n_def > o.t), D, C), n_def
 
 
 level_punisher = Bot("Level Punisher", lambda p, k: jnp.int32(0), _level_punisher_act, memory_depth=INF)
@@ -45,7 +43,7 @@ def _tricky_level_punisher_act(p, n_def, o, k):
     n_def = n_def + (o.their_last == D)
     n = o.t
     defect = ((n < 10) & (5 * n_def > n)) | ((n < 50) & (10 * n_def > n)) | ((n < 100) & (20 * n_def > n))
-    return jnp.where(defect, D, C), n_def.astype(jnp.int32)
+    return jnp.where(defect, D, C), n_def
 
 
 tricky_level_punisher = Bot(

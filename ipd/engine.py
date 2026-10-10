@@ -19,6 +19,8 @@ class TournamentResult(NamedTuple):
     names: list
     scores: jnp.ndarray  # [n, n, reps] mean per-turn score of i against j
     cooperation: jnp.ndarray  # [n, n, reps] cooperation rate of i against j
+    cfg: Config
+    payoffs: jnp.ndarray  # [n, 2, 2]
 
 
 def _run(init_a, act_a, init_b, act_b, payoff_a, payoff_b, key, cfg):
@@ -107,7 +109,7 @@ def round_robin(bots, cfg=Config(), payoffs=None):
     def fill(x):  # diagonal keeps the first player's value
         return jnp.zeros((n, n, cfg.reps)).at[J, I].set(x[..., 1]).at[I, J].set(x[..., 0])
 
-    return TournamentResult([b.name for b in bots], fill(score), fill(coop))
+    return TournamentResult([b.name for b in bots], fill(score), fill(coop), cfg, payoffs)
 
 
 def moran(scores, population, key, max_steps=100_000, mutation_rate=0.0):

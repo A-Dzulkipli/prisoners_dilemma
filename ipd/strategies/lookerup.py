@@ -1,4 +1,4 @@
-"""Lookup table strategies, ported from axelrod's lookerup.py.
+"""Lookup table strategies.
 
 Every table is expanded to the largest shape used, depth 2 for my last moves, their last moves
 and their first moves, and holds cooperation probabilities. So one act serves LookerUp (0/1
@@ -9,7 +9,7 @@ import itertools
 import jax.numpy as jnp
 import numpy as np
 
-from ipd.bots import Bot, _coop_with_prob
+from ipd.bots import INF, Bot, coop_with_prob
 from ipd.game import C, D
 
 
@@ -27,8 +27,8 @@ def _lookup_act(p, s, o, k):
     first1 = jnp.where(o.t == 2, last, first1)
     opening = 2 * first0 + first1
     p_coop = jnp.where(o.t < p["n_init"], p["init"][jnp.minimum(o.t, 1)], p["table"][mine, theirs, opening])
-    s = jnp.stack([jnp.maximum(o.my_last, 0), last, first0, first1]).astype(jnp.int32)
-    return _coop_with_prob(k, p_coop), s
+    s = jnp.stack([jnp.maximum(o.my_last, 0), last, first0, first1])
+    return coop_with_prob(k, p_coop), s
 
 
 def lookup_params(pattern, depths, initial=()):
@@ -45,11 +45,9 @@ def lookup_params(pattern, depths, initial=()):
     return {"table": jnp.asarray(table), "init": jnp.asarray(init, jnp.float32), "n_init": jnp.int32(n_init)}
 
 
-def lookup(name, pattern, depths, initial=(), stochastic=False, memory_depth=None):
-    if memory_depth is None:
-        memory_depth = float("inf") if depths[2] else max(depths)
+def lookup(name, pattern, depths, initial=(), stochastic=False):
     return Bot(name, _lookup_init, _lookup_act, params=lookup_params(pattern, depths, initial),
-               memory_depth=memory_depth, stochastic=stochastic)
+               memory_depth=INF if depths[2] else max(depths), stochastic=stochastic)
 
 
 evolved_lookerup_1_1_1 = lookup("EvolvedLookerUp1_1_1", "CDDDDCDD", (1, 1, 1), (C,))

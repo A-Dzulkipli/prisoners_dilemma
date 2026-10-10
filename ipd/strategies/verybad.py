@@ -1,7 +1,7 @@
-"""VeryBad, ported from axelrod's verybad.py."""
+"""VeryBad."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -11,6 +11,6 @@ def _verybad_act(p, n_coop, o, k):
     return action, n_coop
 
 
-verybad = Bot("VeryBad", lambda p, k: jnp.int32(0), _verybad_act, memory_depth=float("inf"))
+verybad = Bot("VeryBad", lambda p, k: jnp.int32(0), _verybad_act, memory_depth=INF)
 
 STRATEGIES = [verybad]

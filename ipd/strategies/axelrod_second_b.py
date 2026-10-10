@@ -1,15 +1,13 @@
-"""Ports of axelrod's second-tournament strategies (Kluepfel to Yamachi, part b).
+"""Strategies from Axelrod's second tournament (1980), Kluepfel to Yamachi.
 
-Each bot follows the axelrod v4.14 implementation, not the original tournament description.
 Running scores use the bot's own matrix for both players, as the library scores with its own game.
 """
 import jax
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob
+from ipd.bots import INF, Bot, coop_with_prob, last_payoff
 from ipd.game import C, D
 
-INF = float("inf")
 NEVER = jnp.int32(2**30)  # stands in for an infinite turn number
 
 
@@ -18,9 +16,6 @@ def _scores(o):
     m, th = jnp.maximum(o.my_last, 0), jnp.maximum(o.their_last, 0)
     live = o.t > 0
     return jnp.where(live, o.my_payoff[m, th], 0.0), jnp.where(live, o.my_payoff[th, m], 0.0)
-
-
-# --- Tester ---------------------------------------------------------------------------------
 
 
 def _tester_act(p, is_tft, o, k):
@@ -34,9 +29,6 @@ def _tester_act(p, is_tft, o, k):
 second_by_tester = Bot(
     "Second by Tester", lambda p, k: jnp.bool_(False), _tester_act, memory_depth=INF
 )
-
-
-# --- Tranquilizer ---------------------------------------------------------------------------
 
 
 def _tranquilizer_init(p, k):
@@ -84,9 +76,6 @@ second_by_tranquilizer = Bot(
 )
 
 
-# --- Kluepfel -------------------------------------------------------------------------------
-
-
 def _kluepfel_init(p, k):
     z = jnp.int32(0)
     return dict(cd=z, dd=z, dc=z, cc=z, my2=z, opp2=z, opp3=z)  # C before the match starts
@@ -122,9 +111,6 @@ second_by_kluepfel = Bot(
 )
 
 
-# --- WmAdams --------------------------------------------------------------------------------
-
-
 def _wm_adams_act(p, s, o, k):
     """Defects at their 4th, 7th, 9th defection; past 9, answers D with D at prob 1 - 0.5^(n-9)."""
     defs, first_d = s
@@ -133,7 +119,7 @@ def _wm_adams_act(p, s, o, k):
     n = defs - first_d  # defections after their first move
     action = jnp.select(
         [o.t <= 1, (n == 4) | (n == 7) | (n == 9), (n > 9) & (o.their_last == D)],
-        [C, D, _coop_with_prob(k, 0.5 ** (n - 9.0))],
+        [C, D, coop_with_prob(k, 0.5 ** (n - 9.0))],
         C,
     )
     return action, (defs, first_d)
@@ -146,9 +132,6 @@ second_by_wm_adams = Bot(
     memory_depth=INF,
     stochastic=True,
 )
-
-
-# --- Weiner ---------------------------------------------------------------------------------
 
 
 def _weiner_init(p, k):
@@ -181,9 +164,6 @@ def _weiner_act(p, s, o, k):
 
 
 second_by_weiner = Bot("Second by Weiner", _weiner_init, _weiner_act, memory_depth=INF)
-
-
-# --- Tideman and Chieruzzi ------------------------------------------------------------------
 
 
 def _tc_init(p, k):
@@ -231,8 +211,6 @@ second_by_tideman_and_chieruzzi = Bot(
 )
 
 
-# --- Leyvraz --------------------------------------------------------------------------------
-
 # cooperation probability indexed by their moves (3 ago, 2 ago, last)
 _LEYVRAZ_P = jnp.array([1.0, 0.5, 0.0, 0.25, 1.0, 1.0, 1.0, 0.25], jnp.float32)
 
@@ -241,7 +219,7 @@ def _leyvraz_act(p, s, o, k):
     """Reacts to the opponent's last three moves with fixed cooperation probabilities."""
     opp3, opp2 = s
     opp1 = jnp.maximum(o.their_last, 0)
-    return _coop_with_prob(k, _LEYVRAZ_P[4 * opp3 + 2 * opp2 + opp1]), (opp2, opp1)
+    return coop_with_prob(k, _LEYVRAZ_P[4 * opp3 + 2 * opp2 + opp1]), (opp2, opp1)
 
 
 second_by_leyvraz = Bot(
@@ -253,9 +231,6 @@ second_by_leyvraz = Bot(
 )
 
 
-# --- White ----------------------------------------------------------------------------------
-
-
 def _white_act(p, defs, o, k):
     """Cooperates for 10 turns; then answers D with D only if floor(log(turn)) * their D's >= turn."""
     defs = defs + (o.their_last == D)
@@ -265,9 +240,6 @@ def _white_act(p, defs, o, k):
 
 
 second_by_white = Bot("Second by White", lambda p, k: jnp.int32(0), _white_act, memory_depth=INF)
-
-
-# --- RichardHufford -------------------------------------------------------------------------
 
 
 def _hufford_init(p, k):
@@ -283,7 +255,7 @@ def _hufford_act(p, s, o, k):
     turn = o.t + 1
     opp_c = o.their_last == C
     idx = (s["idx"] + 1) % 4
-    agree = (s["my2"] == o.their_last).astype(jnp.int32)
+    agree = s["my2"] == o.their_last
     n_agree = s["n_agree"] + agree
     last4 = s["last4"].at[idx].set(agree)
 
@@ -315,9 +287,6 @@ second_by_richard_hufford = Bot(
 )
 
 
-# --- Yamachi --------------------------------------------------------------------------------
-
-
 def _yamachi_init(p, k):
     z = jnp.int32(0)
     return dict(counts=jnp.zeros(8, jnp.int32), mod1=z, mod2=z, opp2=z, opp3=z, opp_defs=z)
@@ -329,7 +298,7 @@ def _yamachi_act(p, s, o, k):
     turn = o.t + 1
     opp_defs = s["opp_defs"] + (o.their_last == D)
     # counts[(them 3 ago, my intended move 2 ago, them 2 ago)], my move as intended, before override
-    counts = s["counts"].at[4 * s["opp3"] + 2 * s["mod2"] + s["opp2"]].add((turn >= 3).astype(jnp.int32))
+    counts = s["counts"].at[4 * s["opp3"] + 2 * s["mod2"] + s["opp2"]].add(turn >= 3)
     base = 4 * s["opp2"] + 2 * s["mod1"]
     intended = jnp.where((turn == 1) | (counts[base + C] >= counts[base + D]), C, D)
     # 0.45 < (opp_defs + 0.5) / turn < 0.55, in integers
@@ -341,9 +310,6 @@ def _yamachi_act(p, s, o, k):
 
 
 second_by_yamachi = Bot("Second by Yamachi", _yamachi_init, _yamachi_act, memory_depth=INF)
-
-
-# --- Mikkelson ------------------------------------------------------------------------------
 
 
 def _mikkelson_act(p, s, o, k):
@@ -367,8 +333,6 @@ second_by_mikkelson = Bot(
 )
 
 
-# --- Rowsam ---------------------------------------------------------------------------------
-
 NORMAL, CYCLE1, CYCLE2, DEFECT = 0, 1, 2, 3
 
 
@@ -376,7 +340,7 @@ def _rowsam_act(p, s, o, k):
     """Cooperates, checking its score every 6 turns; distrust buys D-C-D cycles, then all-D."""
     mode, distrust, score = s
     turn = o.t + 1
-    score = score + _scores(o)[0]
+    score = score + last_payoff(o)
     normal = mode == NORMAL
     distrust = jnp.where(normal & (turn % 18 == 0) & (distrust >= 3), distrust - 1, distrust)
     check = normal & (turn % 6 == 0)

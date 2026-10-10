@@ -1,9 +1,9 @@
-"""SelfSteem, ported from axelrod's selfsteem.py."""
+"""SelfSteem."""
 import math
 
 import jax.numpy as jnp
 
-from ipd.bots import Bot, _coop_with_prob, no_state
+from ipd.bots import INF, Bot, coop_with_prob, no_state
 from ipd.game import C, D
 
 RANDOM, TFT, DEFECT, COOP = range(4)
@@ -25,10 +25,10 @@ MODE = jnp.array([_mode(n) for n in range(10)], jnp.int32)
 
 
 def _selfsteem_act(p, s, o, k):
-    action = jnp.array([_coop_with_prob(k, 0.5), o.their_last, D, C])[MODE[o.t % 10]]
+    action = jnp.array([coop_with_prob(k, 0.5), o.their_last, D, C])[MODE[o.t % 10]]
     return action, s
 
 
-selfsteem = Bot("SelfSteem", no_state, _selfsteem_act, memory_depth=float("inf"), stochastic=True)
+selfsteem = Bot("SelfSteem", no_state, _selfsteem_act, memory_depth=INF, stochastic=True)
 
 STRATEGIES = [selfsteem]

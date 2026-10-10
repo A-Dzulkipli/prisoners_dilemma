@@ -1,34 +1,31 @@
-"""Hunters, ported from axelrod's hunter.py.
+"""Hunters: bots that defect once they recognise a type of opponent.
 
-Cycle detection (the library's detect_cycle, periods up to 12) is tracked incrementally: the first 12
-moves plus one "still periodic" flag per period. MathConstantHunter compares cooperation counts over
-windows at n/4, n/2 and 3n/4, so it keeps a prefix-count buffer of length max_turns, plus a table of how float64 settles exact
-ties of its 0.2 threshold.
+The library's detect_cycle (periods up to 12) is tracked incrementally: the first 12 moves plus one
+"still periodic" flag per period.
 """
 import jax.numpy as jnp
 import numpy as np
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
-INF = float("inf")
 PERIODS = jnp.arange(13)
 MAX_CYCLE = 12
 
 
-def _cycle_init():
+def cycle_init():
     # first 12 moves of the watched sequence, is_periodic[i] for period i (index 0 unused)
     return jnp.full(MAX_CYCLE, -1, jnp.int32), jnp.ones(13, jnp.bool_)
 
 
-def _cycle_update(first, periodic, j, x, live=True):
+def cycle_update(first, periodic, j, x, live=True):
     """Append move x at position j of the sequence (no-op when not live)."""
     first = jnp.where(live & (j < MAX_CYCLE), first.at[jnp.minimum(j, MAX_CYCLE - 1)].set(x), first)
     periodic = periodic & (~live | (x == first[j % jnp.maximum(PERIODS, 1)]))
     return first, periodic
 
 
-def _detect_cycle(first, periodic, length, min_size):
+def detect_cycle(first, periodic, length, min_size):
     """detect_cycle(history, min_size): (found, smallest period, cycle has both C and D)."""
     valid = periodic & (PERIODS >= min_size) & (PERIODS <= jnp.minimum(length // 2, MAX_CYCLE))
     size = jnp.argmax(valid)
@@ -63,13 +60,13 @@ alternator_hunter = Bot("Alternator Hunter", lambda p, k: (jnp.bool_(True), jnp.
 
 def _cycle_hunter_act(p, s, o, k):
     first, periodic, hunting = s
-    first, periodic = _cycle_update(first, periodic, o.t - 1, o.their_last, o.t > 0)
-    found, _, mixed = _detect_cycle(first, periodic, o.t, 3)
+    first, periodic = cycle_update(first, periodic, o.t - 1, o.their_last, o.t > 0)
+    found, _, mixed = detect_cycle(first, periodic, o.t, 3)
     hunting = hunting | (found & mixed)
     return jnp.where(hunting, D, C), (first, periodic, hunting)
 
 
-cycle_hunter = Bot("Cycle Hunter", lambda p, k: _cycle_init() + (jnp.bool_(False),), _cycle_hunter_act,
+cycle_hunter = Bot("Cycle Hunter", lambda p, k: cycle_init() + (jnp.bool_(False),), _cycle_hunter_act,
                    memory_depth=INF)
 
 
@@ -77,9 +74,9 @@ def _eventual_cycle_hunter_act(p, s, o, k):
     # cycles are looked for in the opponent's moves from index 10 on, re-checked every 10 rounds;
     # unlike Cycle Hunter, constant cycles count
     first, periodic, n_coop, cycle = s
-    first, periodic = _cycle_update(first, periodic, o.t - 11, o.their_last, o.t > 10)
+    first, periodic = cycle_update(first, periodic, o.t - 11, o.their_last, o.t > 10)
     n_coop = n_coop + (o.their_last == C)
-    found, _, _ = _detect_cycle(first, periodic, o.t - 10, 3)
+    found, _, _ = detect_cycle(first, periodic, o.t - 10, 3)
     check = (o.t >= 10) & (n_coop < o.t) & (o.t % 10 == 0)
     cycle = jnp.where(check, found, cycle)
     action = jnp.where((o.t >= 10) & (n_coop < o.t) & cycle, D, C)
@@ -88,7 +85,7 @@ def _eventual_cycle_hunter_act(p, s, o, k):
 
 eventual_cycle_hunter = Bot(
     "Eventual Cycle Hunter",
-    lambda p, k: _cycle_init() + (jnp.int32(0), jnp.bool_(False)),
+    lambda p, k: cycle_init() + (jnp.int32(0), jnp.bool_(False)),
     _eventual_cycle_hunter_act,
     memory_depth=INF,
 )
@@ -143,7 +140,7 @@ def _math_constant_hunter_act(ties, s, o, k):
 
 
 def math_constant_hunter(max_turns=1000):
-    """History buffer and float64 tie table both sized by max_turns."""
+    """Compares cooperation over windows of the history; the prefix counts and float64 tie table cover max_turns."""
     return Bot("Math Constant Hunter", lambda p, k: (jnp.zeros(max_turns + 1, jnp.int32), jnp.int32(0)),
                _math_constant_hunter_act, _math_constant_tie_table(max_turns), memory_depth=INF)
 

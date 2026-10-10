@@ -1,4 +1,4 @@
-"""Finite state machine strategies, ported from axelrod's finite_state_machines.py.
+"""Finite state machine strategies.
 
 One act serves every machine: params hold dense next-state and output tables indexed by
 [state, their last move], so machines with the same number of states can be vmapped over params.
@@ -6,17 +6,17 @@ One act serves every machine: params hold dense next-state and output tables ind
 import jax.numpy as jnp
 import numpy as np
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 
 
 def _fsm_act(p, state, o, k):
     nxt = p["next"][state, jnp.maximum(o.their_last, 0)]
     out = p["out"][state, jnp.maximum(o.their_last, 0)]
     first = o.t == 0
-    return jnp.where(first, p["first"], out), jnp.where(first, state, nxt).astype(jnp.int32)
+    return jnp.where(first, p["first"], out), jnp.where(first, state, nxt)
 
 
-def fsm(name, transitions, initial_state, initial_action, n_states=None, memory_depth=float("inf")):
+def fsm(name, transitions, initial_state, initial_action, n_states=None, memory_depth=INF):
     """transitions: rows (state, their last move, next state, my move), as in axelrod. Pad to n_states."""
     labels = sorted({row[0] for row in transitions})
     idx = {s: i for i, s in enumerate(labels)}

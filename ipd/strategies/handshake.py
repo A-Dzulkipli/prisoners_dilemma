@@ -1,7 +1,7 @@
-"""Handshake, ported from axelrod's handshake.py."""
+"""Handshake."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -11,6 +11,6 @@ def _handshake_act(p, ok, o, k):
     return jnp.select([o.t == 0, o.t == 1, ok], [C, D, C], D), ok
 
 
-handshake = Bot("Handshake", lambda p, k: jnp.bool_(True), _handshake_act, memory_depth=float("inf"))
+handshake = Bot("Handshake", lambda p, k: jnp.bool_(True), _handshake_act, memory_depth=INF)
 
 STRATEGIES = [handshake]

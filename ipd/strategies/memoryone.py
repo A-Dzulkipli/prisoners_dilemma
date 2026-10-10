@@ -1,4 +1,4 @@
-"""Memory-one strategies, ported from axelrod's memoryone.py (GTFT and WSLS live in ipd.bots)."""
+"""Memory-one strategies; GTFT and WSLS live in ipd.bots."""
 from ipd.bots import memory_one
 
 win_shift_lose_stay = memory_one([0, 1, 1, 0], p0=0.0, name="Win-Shift Lose-Stay")._replace(stochastic=False)

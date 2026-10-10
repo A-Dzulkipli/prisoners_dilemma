@@ -1,4 +1,4 @@
-"""Tricky Cooperator, ported from axelrod's cooperator.py (Cooperator itself is in ipd.bots)."""
+"""Tricky Cooperator; Cooperator itself is in ipd.bots."""
 import jax.numpy as jnp
 
 from ipd.bots import Bot

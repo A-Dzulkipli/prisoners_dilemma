@@ -1,4 +1,4 @@
-"""Neural network strategies, ported from axelrod's ann.py.
+"""Neural network strategies.
 
 One act serves every network: a single hidden ReLU layer over 17 history features, with the
 hidden layer zero-padded to a common width so the variants share one params shape.
@@ -6,7 +6,7 @@ hidden layer zero-padded to a common width so the variants share one params shap
 import jax.numpy as jnp
 import numpy as np
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -38,7 +38,7 @@ def _ann_act(p, s, o, k):
     hidden = jnp.where(pre[0] < 0, jnp.trunc(hidden), hidden)
     out = hidden @ p["w_out"]
     s = jnp.stack([first0, first1, o.my_last, o.their_last, their_c, their_d, my_c, my_d])
-    return jnp.where(out > 0, C, D), s.astype(jnp.int32)
+    return jnp.where(out > 0, C, D), s
 
 
 def ann(name, weights, n_features=17, n_hidden=10, width=10):
@@ -49,7 +49,7 @@ def ann(name, weights, n_features=17, n_hidden=10, width=10):
     params = {"w_in": jnp.asarray(np.pad(w[:n_in].reshape(n_hidden, n_features), (pad, (0, 0)))),
               "w_out": jnp.asarray(np.pad(w[n_in:n_in + n_hidden], pad)),
               "bias": jnp.asarray(np.pad(w[n_in + n_hidden:], pad))}
-    return Bot(name, _ann_init, _ann_act, params=params, memory_depth=float("inf"))
+    return Bot(name, _ann_init, _ann_act, params=params, memory_depth=INF)
 
 
 def from_axelrod(name):

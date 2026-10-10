@@ -1,7 +1,7 @@
-"""Gradual Killer, ported from axelrod's gradualkiller.py."""
+"""Gradual Killer."""
 import jax.numpy as jnp
 
-from ipd.bots import Bot
+from ipd.bots import INF, Bot
 from ipd.game import C, D
 
 
@@ -13,6 +13,6 @@ def _gradual_killer_act(p, n_late_def, o, k):
     return action, n_late_def
 
 
-gradual_killer = Bot("Gradual Killer", lambda p, k: jnp.int32(0), _gradual_killer_act, memory_depth=float("inf"))
+gradual_killer = Bot("Gradual Killer", lambda p, k: jnp.int32(0), _gradual_killer_act, memory_depth=INF)
 
 STRATEGIES = [gradual_killer]
