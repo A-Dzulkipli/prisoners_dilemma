@@ -11,3 +11,7 @@ library = ["axelrod", "torch"]
 
 [tool.setuptools]
 packages = ["ipd"]
+
+[tool.pytest.ini_options]
+markers = ["slow: big-team meta strategy checks (~45 min); run with -m slow"]
+addopts = "-m 'not slow' -W ignore::SyntaxWarning"
